@@ -1,0 +1,832 @@
+
+
+
+
+# helper fns for simulation study
+# the fn for computing the estimators themselves are in stronger_than_function.R
+
+#  since users will want those
+
+
+############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMATES #############################
+
+
+# list with first entry for b and second entry for t2
+# n.ests: how many parameters were estimated?
+get_boot_CIs = function(boot.res, type, n.ests) {
+  bootCIs = lapply( 1:n.ests, function(x) boot.ci(boot.res, type = type, index = x) )
+  
+  # list with first entry for b and second entry for t2
+  # the middle index "4" on the bootCIs accesses the stats vector
+  # the final index chooses the CI lower (4) or upper (5) bound
+  bootCIs = lapply( 1:n.ests, function(x) c( bootCIs[[x]][[4]][4],
+                                             bootCIs[[x]][[4]][5] ) )
+}
+
+
+
+########################### FN: PHAT FOR META-REGRESSION ###########################
+
+# includes the meta-regression part since we want to bootstrap that process
+prop_stronger_mr = function(dat,
+                            zc.star,
+                            zb.star,
+                            # if also looking at difference:
+                            zb.ref = NA,
+                            zc.ref = NA,
+                            simple.output = FALSE) {  # for ease with boot() fn
+  
+  # # test only
+  # dat = d
+  # zc.star = .5
+  # zb.star = 1
+  # zb.ref = 0
+  # zc.ref = -0.5
+  
+  yi = dat$yi
+  vyi = dat$vyi
+  Zc = dat$Zc
+  Zb = dat$Zb
+  
+  # fit meta-regression
+  m = robu( yi ~ Zc + Zb, 
+            data = dat, 
+            studynum = 1:nrow(dat),
+            var.eff.size = vyi )
+  bhat0 = m$b.r[1]
+  bhatc = m$b.r[2]
+  bhatb = m$b.r[3]
+  t2 = m$mod_info$tau.sq
+  
+  
+  ##### Try Shifting the yis Themselves to Use Existing Package and Sims #####
+  dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  # shifted to have moderators set to 0
+  ens.shift = calib_ests(yi = dat$yi.shift,
+                    sei = sqrt(vyi) )
+  
+  # q shifted to set moderators to 0
+  q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star)
+  # ~~ ASSUME TAIL = ABOVE
+  Phat = mean(ens.shift > q.shift)
+  
+  if ( !is.na(zc.ref) & !is.na(zb.ref) ) {
+
+    q.shift.ref = p$q - (bhatc * zc.ref) - (bhatb * zb.ref)
+
+    Phat.ref = mean(ens.shift > q.shift.ref)
+    Phat.diff = Phat - Phat.ref
+      
+  } else {
+    Phat.ref = NA
+    Phat.diff = NA
+  }
+
+
+  
+  if ( simple.output == TRUE ) return(Phat)
+  if ( simple.output == FALSE ) {
+    return( data.frame( Phat = Phat,
+                        Phat.ref = Phat.ref,
+                        Phat.diff = Phat.diff,
+                        bhat0 = bhat0,
+                        bhatc = bhatc, 
+                        bhatb = bhatb, 
+                        t2 = t2) )
+    
+  }
+}
+
+
+########################### FN: SIMULATE 1 STUDY ###########################
+
+# mu = true effect size as raw mean difference
+# V = true variance of true effects
+# muN = mean sample size in each study
+# minN = minimum sample size 
+# sd.w = SD within each group (2-group experiment)
+
+# updated 2020-6-7
+sim_one_study = function( b0, # intercept
+                          bc, # effect of continuous moderator
+                          bb, # effect of binary moderator
+                          V, 
+                          muN,
+                          minN,
+                          sd.w,
+                          true.effect.dist = "normal"
+) {
+  
+  # # TEST ONLY
+  # b0 = 0.5 # intercept
+  # bc = 0.5 # effect of continuous moderator
+  # bb = 1 # effect of binary moderator
+  # V = .5
+  # muN = 100
+  # minN = 50
+  # sd.w = 1
+  # true.effect.dist = "normal"
+  
+  # simulate total N for each study
+  N = round( runif( n = 1, min = minN, max = minN + 2*( muN - minN ) ) ) # draw from uniform centered on muN
+  
+  # simulate study-level moderators
+  Zc = rnorm( n = 1, mean = 0, sd = 1)
+  Zb = rbinom( n = 1, size =1, prob = 0.5)
+  
+  # mean (i.e., linear predictor) conditional on the moderators
+  mu = b0 + bc*Zc + bb*Zb
+  
+  
+  ##### Draw a Single Population True Effect for This Study #####
+  if ( true.effect.dist == "normal" ) {
+    Mi = rnorm( n=1, mean=mu, sd=sqrt(V) )
+  }
+  if ( true.effect.dist == "expo" ) {
+    # set the rate so the heterogeneity is correct
+    Mi = rexp( n = 1, rate = sqrt(1/V) )
+    # now the mean is sqrt(V) rather than mu
+    # shift to have the correct mean (in expectation)
+    Mi = Mi + (mu - sqrt(V))
+  }
+  if ( true.effect.dist == "unif2") {
+    Mi = runif2( n = 1,
+                 mu = mu, 
+                 V = V)$x
+  }
+  if (true.effect.dist == "t.scaled") {
+    Mi = rt.scaled(n = 1,
+                   df = 3,  # fixed for all scenarios to get very heavy tails
+                   mean = mu,
+                   sd = sqrt(V))
+  }
+  
+  ###### Simulate Data For Individual Subjects ######
+  
+  # group assignments
+  X = c( rep( 0, N/2 ), rep( 1, N/2 ) )
+  
+  # simulate continuous outcomes
+  # 2-group study of raw mean difference with means 0 and Mi in each group
+  # and same SD
+  Y = c( rnorm( n = N/2, mean = 0, sd = sd.w ),
+         rnorm( n = N/2, mean = Mi, sd = sd.w ) )
+  
+  # calculate ES for this study using metafor (see Viechtbauer "Conducting...", pg 10)
+  require(metafor)
+  ES = escalc( measure="SMD",   
+               n1i = N/2, 
+               n2i = N/2,
+               m1i = mean( Y[X==1] ),
+               m2i = mean( Y[X==0] ),
+               sd1i = sd( Y[X==1] ),
+               sd2i = sd( Y[X==0] ) ) 
+  yi = ES$yi
+  vyi = ES$vi
+  
+  return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
+}
+
+
+##################### FNs FOR UNIFORM MIXTURE #####################
+
+# generate from a uniform mixture with endpoints [-b, -a] and [a, b]
+#  but shifted so that the grand mean is mu
+runif2 = function(n,
+                  mu,
+                  V) {
+  # calculate lower limit for positive distribution, a
+  # arbitrary, but can't have too large or else it;s impossible to find
+  #  a valid b
+  a = sqrt(V)/2  
+  
+  # calculate upper endpoint for positive distribution, b
+  b = abs( 0.5 * ( sqrt(3) * sqrt( 4*V - a^2 ) - a ) )
+  
+  # prior to mean shift
+  components = sample(1:2,
+                      prob=c(0.5, 0.5),
+                      size=n,
+                      replace=TRUE)
+  
+  mins = c( -b, a )
+  maxes = c( -a, b )
+  
+  samples = runif(n=n,
+                  min=mins[components],
+                  max=maxes[components])
+  
+  # mean-shift them
+  samples = samples + mu
+  
+  return( list(x = samples,
+               a = a, 
+               b = b) )
+}
+
+# # sanity check
+# mu = 0.5
+# V = 0.1^2
+# fake = runif2( n = 10000,
+#                mu = mu, 
+#                V = V)$x
+# 
+# hist(fake)
+# mean(fake)
+# var(fake); V
+
+
+# calculate quantile
+qunif2 = function(p, 
+                  mu,
+                  V) {
+  
+  # calculate lower limit for positive distribution, a
+  a = sqrt(V)/2  
+  
+  # calculate upper endpoint for positive distribution, b
+  b = abs( 0.5 * ( sqrt(3) * sqrt( 4*V - a^2 ) - a ) )
+  
+  # in this case, easy because the q must be within
+  #  the negative distribution
+  if (p < 0.5) {
+    # total length of support, not counting the gap, 
+    #  is (b-a)*2
+    # we want a point that is p% of the way through the support
+    
+    # from the lower endpoint of the negative dist, add the proportion of that interval
+    q.shift = -b + p * (b-a)*2
+  }
+  
+  else if (p == 0.5) q.shift = 0
+  
+  # now we're in the positive part of the distribution
+  else if (p > 0.5) {
+    # subtract the 0.5 that's used up by the negative dist
+    # so we want a point that is (p-0.5)% of the way into the support
+    #  of the positive part
+    #  and the positive part has support length (b-a)
+    #q.shift = a + (p - 0.5) * (b-a)
+    
+    #browser()
+    q.temp = -b + p * (b-a)*2
+    q.shift = q.temp + 2*a
+  }
+  
+  q = q.shift + mu
+  return(q)
+}
+
+# # sanity check
+# mu = 0.5
+# V = 0.1^2
+# fake = runif2( n = 10000,
+#                mu = mu,
+#                V = V)
+# 
+# hist(fake$x)
+# mean(fake$x)
+# var(fake$x); V
+# 
+# p = 0.1
+# ( q = qunif2( p = p, 
+#         mu = mu, 
+#         V = V) )
+# sum(fake$x < q) / length(fake$x); p
+# # works :) 
+
+
+########################### FN: SIMULATE 1 WHOLE DATASET ###########################
+# Vw = within-study variances
+# Vwv = variance of within-study variances
+# p1 = P(X=1)
+# p.int = P(Y=1 | X=0, U=0), i.e., intercept probability for logistic model
+
+# updated 2020-6-5
+sim_data = function( k, 
+                     b0, # intercept
+                     bc, # effect of continuous moderator
+                     bb, # effect of binary moderator 
+                     V,
+                     muN, 
+                     minN,
+                     sd.w, 
+                     true.effect.dist) {
+  
+  
+  # initialize estimated ES to values that will enter the while-loop
+  t2 = 0  
+  
+  # if RE fit isn't apparently causative, or if denominator is going to be undefined, sample again
+  # ~~~~~~ NOTE: NEED TO BE CAREFUL CHOOSING PARAMETERS TO AVOID SYSTEMATICALLY
+  # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
+  # ~~~ MAYBE DON'T NEED TO REJECT 
+  while ( t2 == 0 ) {
+    #while ( (M <= 0) | (V == 0) ) {   
+    yi = c()
+    vyi = c()
+    Mi = c()
+    mu = c()
+    Zb = c()
+    Zc = c()
+    
+    # simulate k studies
+    for (i in 1:k) {
+      study = sim_one_study( b0, # intercept
+                             bc, # effect of continuous moderator
+                             bb, # effect of binary moderator
+                             V = V, 
+                             muN = muN,
+                             minN = minN,
+                             sd.w = sd.w,
+                             true.effect.dist = true.effect.dist)
+      yi = c( yi, study$yi )  # append this study's ES to the list
+      vyi = c( vyi, study$vyi )  # append this study's variance to the list
+      Mi = c( Mi, study$Mi )  # append this study's mean to the list
+      mu = c( mu, study$mu )
+      Zc = c( Zc, study$Zc )
+      Zb = c( Zb, study$Zb )
+    }
+    
+    # fit RE model in order to record t2
+    temp = rma.uni( yi=yi,
+                    vi=vyi,
+                    measure="SMD",
+                    knha = TRUE,
+                    method = "REML" )
+    t2 = temp$tau2
+  }
+  
+  return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
+}
+
+
+
+##### Fn: Check CI coverage #####
+covers = function( truth, lo, hi ) {
+  return( (lo <= truth) & (hi >= truth) )
+}
+
+
+
+
+########################### FN: MAKE SCENARIO PARAMETERS ###########################
+
+
+# all arguments that are scen parameters can be vectors
+#  for use in expand_grid
+make_scen_params = function( method, 
+                             k,
+                             b0, # intercept
+                             bc, # effect of continuous moderator
+                             bb, # effect of binary moderator
+                             
+                             zc.star,  # level of moderators to consider
+                             zb.star,
+                             zc.ref,
+                             zb.ref,
+                             
+                             V,  # variance of true effects
+                             muN, # just a placeholder; to be filled in later
+                             minN,
+                             sd.w,
+                             tail,
+                             true.effect.dist, # "expo" or "normal"
+                             TheoryP,
+                             
+                             # number to start scenario names 
+                             start.at = 1) {
+  
+  # full set of scenarios
+  scen.params = expand.grid( method = method,
+                             k = k,
+                             b0 = b0, 
+                             bc = bc, 
+                             bb = bb, 
+                             zc.star = zc.star,
+                             zb.star = zb.star,
+                             zc.ref = zc.ref,
+                             zb.ref = zb.ref,
+                             V = V,  # variance of true effects
+                             muN = muN, # just a placeholder; to be filled in later
+                             minN = minN,
+                             sd.w = sd.w,
+                             tail = tail,
+                             true.effect.dist = true.effect.dist, # "expo" or "normal"
+                             TheoryP = TheoryP)
+  
+  # calculate q to have correct TheoryP for the zc.star and zb.star level of moderators
+  scen.params = scen.params %>% rowwise %>%
+    mutate( q = calculate_q(true.effect.dist = true.effect.dist,
+                            TheoryP = TheoryP, 
+                            b0 = b0, 
+                            bc = bc, 
+                            bb = bb, 
+                            zc = zc.star,
+                            zb = zb.star,
+                            V = V),
+            
+            # and calculate the TheoryP for the reference level, based on the q chosen above
+            TheoryP.ref = calculate_theory_p(true.effect.dist = true.effect.dist,
+                                             q = q, 
+                                             b0 = b0, 
+                                             bc = bc, 
+                                             bb = bb, 
+                                             zc = zc.ref,
+                                             zb = zb.ref,
+                                             V = V),
+            
+            TheoryDiff = TheoryP - TheoryP.ref
+            )
+  
+  
+  
+  # name the scenarios
+  scen.params$scen.name = start.at : ( start.at + nrow(scen.params) - 1 )
+  
+  # avoid doing all factorial combinations of muN and minN this way
+  scen.params$muN = scen.params$minN + 50
+  
+  return(scen.params)
+}
+
+
+########################### FN: QUANTILE CALCULATOR FOR A DESIRED THEORYP ###########################
+
+
+# return the threshold q that is the TheoryP^th quantile 
+#  when moderators are set to zc.star and zb.star
+calculate_theory_p = function(true.effect.dist, 
+                       q,
+                       b0,
+                       bc,
+                       bb,
+                       zc,   
+                       zb,
+                       V){
+  
+  # get the mean for this combination of moderators
+  mu = b0 + bc*zc + bb*zb
+  
+  if ( true.effect.dist == "normal" ) {
+    return( 1 - pnorm( q = q,
+                       mean = mu,
+                       sd = sqrt(V) ) )
+  }
+  
+  if ( true.effect.dist == "expo" ) {
+    # we generate from a exponential, then shift to achieve the correct mean, 
+    #  so q is the threshold BEFORE shifting
+    # here is the data generation code from sim_data:
+    # Mi = rexp( n = 1, rate = sqrt(1/V) )
+    # Mi = Mi + (mu - sqrt(V))
+    # is this first line right?
+    #stop("Not tested/written yet")
+    q0 = q - ( mu - sqrt(V) )
+    return( pexp( q = q0,
+                  rate = sqrt(1/V),
+                  lower.tail = FALSE) )
+  }
+  
+  if ( true.effect.dist == "unif2" ) {
+    stop("unif2 method not tested/written yet")
+    # return( qunif2( p = 1 - TheoryP, 
+    #                 mu = mu, 
+    #                 V = V) )
+  }
+  
+  if (true.effect.dist == "t.scaled") {
+    stop("t.scaled method not tested/written yet")
+    # from metRology package
+    # return( qt.scaled(p = 1 - TheoryP,
+    #                   df = 3,
+    #                   mean = mu,
+    #                   sd = sqrt(V) ) )
+  }
+  
+  else stop("true.effect.dist not recognized.")
+}
+
+# # bm
+# # sanity check: with a single binary covariate
+# q = .5
+# b0 = 0.5
+# bc = 0
+# bb = 0.25
+# zc = 0
+# zb = 1
+# V = 0.25
+# 
+# calculate_theory_p("expo",
+#                    q = q,
+#                    b0 = b0,
+#                    bc = bc,
+#                    bb = bb,
+#                    zc = zc,
+#                    zb = zb,
+#                    V = V)
+# 
+# d = sim_data(k = 1000,
+#          b0 = b0,
+#          bc = bc,
+#          bb = bb,
+#          V = V,
+#          muN = 51,
+#          minN = 50,
+#          sd.w = 1,
+#          true.effect.dist = "expo")
+# d = d %>% filter( Zb == 1 )  # filter to get the right subgroup
+# mean(d$Mi > q)
+# mean( (d$Mi - (mu - sqrt(V^2)) ) > (q - (mu - sqrt(V^2))) )
+
+
+# return the threshold q that is the TheoryP^th quantile 
+#  when moderators are set to zc.star and zb.star
+calculate_q = function(true.effect.dist, 
+                       TheoryP,
+                       b0,
+                       bc,
+                       bb,
+                       zc,  # chosen value of 
+                       zb,
+                       V){
+  
+  # get the mean for this combination of moderators
+  mu = b0 + bc*zc + bb*zb
+  
+  if ( true.effect.dist == "normal" ) {
+    return( qnorm( p = 1 - TheoryP,
+                   mean = mu,
+                   sd = sqrt(V) ) )
+  }
+  
+  if ( true.effect.dist == "expo" ) {
+    # we generate from a exponential, then shift to achieve the correct mean, 
+    #  so q0 is the threshold BEFORE shifting
+    # here is the data generation code from sim_data:
+    # Mi = rexp( n = 1, rate = sqrt(1/V) )
+    # Mi = Mi + (mu - sqrt(V))
+    q0 = qexp( p = TheoryP, 
+               rate = sqrt(1/V),
+               lower.tail = FALSE)
+    return( q0 + (mu - sqrt(V) ) )
+  }
+  
+  if ( true.effect.dist == "unif2" ) {
+    return( qunif2( p = 1 - TheoryP, 
+                    mu = mu, 
+                    V = V) )
+  }
+  
+  if (true.effect.dist == "t.scaled") {
+    # from metRology package
+    return( qt.scaled(p = 1 - TheoryP,
+                      df = 3,
+                      mean = mu,
+                      sd = sqrt(V) ) )
+  }
+  
+  else stop("true.effect.dist not recognized.")
+}
+# # sanity check
+# ( q = calculate_q( true.effect.dist = "expo",
+#              TheoryP = 0.1, 
+#              mu = 0.5,
+#              V = 0.25^2 ) )
+# Mi = rexp( n = 10000, rate = sqrt(1/(.25^2)) )
+# Mi = Mi + (0.5 - sqrt(.25^2))
+# sum(Mi > q) / length(Mi)
+
+
+
+########################### FN: RETURN FILES THAT AREN'T COMPLETED ###########################
+
+# looks at results files to identify sbatches that didn't write a file
+# .max.sbatch.num: If not passed, defaults to largest number in actually run jobs.
+
+sbatch_not_run = function(.results.singles.path,
+                          .results.write.path,
+                          .name.prefix,
+                          .max.sbatch.num = NA ) {
+  
+  # get list of all files in folder
+  all.files = list.files(.results.singles.path, full.names=TRUE)
+  
+  # we only want the ones whose name includes .name.prefix
+  keepers = all.files[ grep( .name.prefix, all.files ) ]
+  
+  # extract job numbers
+  sbatch.nums = as.numeric( unlist( lapply( strsplit( keepers, split = "_"), FUN = function(x) x[5] ) ) )
+  
+  # check for missed jobs before the max one
+  if ( is.na(.max.sbatch.num) ) .max.sbatch.num = max(sbatch.nums)
+  all.nums = 1 : .max.sbatch.num
+  missed.nums = all.nums[ !all.nums %in% sbatch.nums ]
+  
+  # give info
+  print( paste("The max job number is: ", max(sbatch.nums) ) )
+  print( paste( "Number of jobs that weren't run: ",
+                ifelse( length(missed.nums) > 0, length(missed.nums), "none" ) ) )
+  
+  if( length(missed.nums) > 0 ) {
+    setwd(.results.write.path)
+    write.csv(missed.nums, "missed_job_nums.csv")
+  }
+  
+  return(missed.nums)
+  
+}
+
+# missed.nums = sbatch_not_run( "/home/groups/manishad/multTest/sim_results/short",
+#                 "/home/groups/manishad/multTest/sim_results",
+#                 .name.prefix = "short_results" )
+# scp mmathur@sherlock:/share/PI/manishad/multTest/sim_results/missed_job_nums.csv ~/Desktop
+
+
+########################### SLURM FUNCTIONS ###########################
+
+# These just generate the sbatch files
+
+# DO NOT CHANGE THE INDENTATION IN THE BELOW OR ELSE SLURM 
+#  WILL SILENTLY IGNORE THE BATCH COMMANDS DUE TO EXTRA WHITESPACE!!
+sbatch_skeleton <- function() {
+  return(
+    "#!/bin/bash
+    #################
+    #set a job name  
+    #SBATCH --job-name=JOBNAME
+    #################  
+    #a file for job output, you can check job progress
+    #SBATCH --output=OUTFILE
+    #################
+    # a file for errors from the job
+    #SBATCH --error=ERRORFILE
+    #################
+    #time you think you need; default is one hour
+    #SBATCH --time=JOBTIME
+    #################
+    #quality of service; think of it as job priority
+    #SBATCH --qos=QUALITY
+    #################
+    #submit to both owners and normal partition
+    #SBATCH -p normal,owners
+    #################
+    #number of nodes you are requesting
+    #SBATCH --nodes=NODENUMBER
+    #################
+    #memory per node; default is 4000 MB
+    #SBATCH --mem=MEMPERNODE
+    #you could use --mem-per-cpu; they mean what we are calling cores
+    #################
+    #get emailed about job BEGIN, END, and FAIL
+    #SBATCH --mail-type=MAILTYPE
+    #################
+    #who to send email to; please change to your email
+    #SBATCH  --mail-user=USER_EMAIL
+    #################
+    #task to run per node; each node has 16 cores
+    #SBATCH --ntasks=TASKS_PER_NODE
+    #################
+    #SBATCH --cpus-per-task=CPUS_PER_TASK
+    #now run normal batch commands
+    
+    ml load R
+    srun R -f PATH_TO_R_SCRIPT ARGS_TO_R_SCRIPT")
+}
+
+
+
+generateSbatch <- function(sbatch_params,
+                           runfile_path = NA,
+                           run_now = F) {
+  
+  #sbatch_params is a data frame with the following columns
+  #jobname: string, specifies name associated with job in SLURM queue
+  #outfile: string, specifies the name of the output file generated by job
+  #errorfile: string, specifies the name of the error file generated by job
+  #jobtime: string in hh:mm:ss format, max (maybe soft) is 48:00:00 
+  #specifies the amoung of time job resources should be allocated
+  #jobs still running after this amount of time will be aborted
+  #quality: kind of like priority, normal works
+  #node_number, integer: the number of nodes (computers w/16 cpus each) to allocate 
+  #mem_per_node, integer: RAM, in MB, to allocate to each node
+  #mailtype, string: ALL, BEGIN, END, FAIL: what types of events should you be notified about via email
+  #user_email string: email address: email address to send notifications
+  #tasks_per_node: integer, number of tasks, you should probably use 1
+  #cpus_per_task: integer, 1-16, number of cpus to use, corresponds to number of available cores per task
+  #path_to_r_script: path to r script on sherlock
+  #args_to_r_script: arguments to pass to r script on command line
+  #write_path: where to write the sbatch file
+  #server_sbatch_path: where sbatch files will be stored on sherlock
+  #runfile_path is a string containing a path at which to write an R script that can be used to run
+  #the batch files generated by this function. 
+  #if NA, no runfile will be written
+  #run_now is a boolean specifying whether batch files should be run as they are generated
+  
+  sbatches <- list()
+  if (!is.na(runfile_path)) {
+    outfile_lines <- c(paste0("# Generated on ",  Sys.time()))
+  }
+  for (sbatch in 1:nrow(sbatch_params) ) {
+    gen_batch <- sbatch_skeleton()
+    #set job name
+    if (is.null(sbatch_params$jobname[sbatch])) { 
+      gen_batch <- gsub("JOBNAME", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("JOBNAME", sbatch_params$jobname[sbatch], gen_batch) 
+    }
+    #set outfile name
+    if (is.null(sbatch_params$outfile[sbatch])) { 
+      gen_batch <- gsub("OUTFILE", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("OUTFILE", sbatch_params$outfile[sbatch], gen_batch) 
+    }
+    #set errorfile name
+    if (is.null(sbatch_params$errorfile[sbatch])) { 
+      gen_batch <- gsub("ERRORFILE", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("ERRORFILE", sbatch_params$errorfile[sbatch], gen_batch) 
+    }
+    #set jobtime
+    if (is.null(sbatch_params$jobtime[sbatch])) { 
+      gen_batch <- gsub("JOBTIME", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("JOBTIME", sbatch_params$jobtime[sbatch], gen_batch) 
+    }
+    #set quality
+    if (is.null(sbatch_params$quality[sbatch])) { 
+      gen_batch <- gsub("QUALITY", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("QUALITY", sbatch_params$quality[sbatch], gen_batch) 
+    }
+    #set number of nodes
+    if (is.null(sbatch_params$node_number[sbatch])) { 
+      gen_batch <- gsub("NODENUMBER", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("NODENUMBER", sbatch_params$node_number[sbatch], gen_batch) 
+    }
+    #set memory per node
+    if (is.null(sbatch_params$mem_per_node[sbatch])) { 
+      gen_batch <- gsub("MEMPERNODE", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("MEMPERNODE", sbatch_params$mem_per_node[sbatch], gen_batch) 
+    }
+    #set requested mail message types
+    if (is.null(sbatch_params$mailtype[sbatch])) { 
+      gen_batch <- gsub("MAILTYPE", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("MAILTYPE", sbatch_params$mailtype[sbatch], gen_batch) 
+    }
+    #set email at which to receive messages
+    if (is.null(sbatch_params$user_email[sbatch])) { 
+      gen_batch <- gsub("USER_EMAIL", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("USER_EMAIL", sbatch_params$user_email[sbatch], gen_batch) 
+    }
+    #set tasks per node
+    if (is.null(sbatch_params$tasks_per_node[sbatch])) { 
+      gen_batch <- gsub("TASKS_PER_NODE", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("TASKS_PER_NODE", sbatch_params$tasks_per_node[sbatch], gen_batch) 
+    }
+    #set cpus per task
+    if (is.null(sbatch_params$cpus_per_task[sbatch])) { 
+      gen_batch <- gsub("CPUS_PER_TASK", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("CPUS_PER_TASK", sbatch_params$cpus_per_task[sbatch], gen_batch) 
+    }
+    #set path to r script
+    if (is.null(sbatch_params$path_to_r_script[sbatch])) { 
+      gen_batch <- gsub("PATH_TO_R_SCRIPT", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("PATH_TO_R_SCRIPT", sbatch_params$path_to_r_script[sbatch], gen_batch) 
+    }
+    #set args to r script
+    if (is.null(sbatch_params$args_to_r_script[sbatch])) { 
+      gen_batch <- gsub("ARGS_TO_R_SCRIPT", "unnamed", gen_batch) 
+    } else { 
+      gen_batch <- gsub("ARGS_TO_R_SCRIPT", sbatch_params$args_to_r_script[sbatch], gen_batch) 
+    }
+    
+    #write batch file
+    if (is.null(sbatch_params$write_path[sbatch])) { 
+      cat(gen_batch, file = paste0("~/sbatch_generated_at_", gsub(" |:|-", "_", Sys.time()) ), append = F)
+    } else { 
+      cat(gen_batch, file = sbatch_params$write_path[sbatch], append = F)
+    }
+    
+    if (!is.na(sbatch_params$server_sbatch_path[sbatch])) {
+      outfile_lines <- c(outfile_lines, paste0("system(\"sbatch ", sbatch_params$server_sbatch_path[sbatch], "\")"))
+    } 
+    sbatches[[sbatch]] <- gen_batch
+  }
+  if (!is.na(runfile_path)) {
+    cat(paste0(outfile_lines, collapse = "\n"), file = runfile_path)
+  }
+  if(run_now) { system(paste0("R -f ", runfile_path)) } 
+  
+  return(sbatches)
+}
+
+
+########################### ANALYSIS HELPER FNS ###########################
+
