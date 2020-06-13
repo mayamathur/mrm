@@ -1,6 +1,7 @@
 
 #### NEXT UP: 
-# - Run brat scenario locally to see why it had a sim failure
+# - Record I^2?
+# - See in new simulations if k=150 works for smaller diffs
 
 
 # because Sherlock 2.0 restores previous workspace
@@ -27,7 +28,7 @@ if (run.local == FALSE) {
 
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 10
+  sim.reps = 100
   # was 5,000 in NPPhat
   boot.reps = 5000
 
@@ -56,51 +57,51 @@ if (run.local == FALSE) {
   # set the number of cores
   registerDoParallel(cores=16)
 
-  ##### Write Blank CSV File #####
-  # this records that the rep started in case there is a problem with the bootstrapping
-  placeholder = data.frame( TrueMean = NA,
-                            EstMean = NA, 
-                            
-                            TrueVar = NA,
-                            EstVar = NA,
-  
-                            # for "star" level of moderators
-                            Phat = NA,
-                            PhatLo = NA,
-                            PhatHi =  NA,
-                            
-                            # for reference level of moderators
-                            PhatRef =  NA,
-                            PhatRefLo =  NA,
-                            PhatRefHi =  NA,
-                     
-                            # for the difference
-                            #TheoryDiff = p$TheoryDiff, 
-                            Diff =  NA,
-                            DiffLo =  NA,
-                            DiffHi =  NA,
-                            
-                            # method of calculating CI: exponentiate logit or not?
-                            Method =  NA,
-                            
-                            # CI performance
-                            CoverPhat =  NA,
-                            CoverPhatRef =  NA,
-                            CoverDiff =  NA,
-                            
-                            PhatCIWidth =  NA,
-                            PhatRefCIWidth =  NA,
-                            DiffCIWidth =  NA,
-                            
-                            Note = "Sim failure")
-
-
-  placeholder$scen.name = scen
-  placeholder = merge( placeholder, scen.params, by = "scen.name" )
-
-  setwd("/home/groups/manishad/MRM/sim_results/long")
-  write.csv( placeholder, paste( "long_results", jobname, ".csv", sep="_" ) )
-  # this will be overwritten if the rep finished successfully
+  # ##### Write Blank CSV File #####
+  # # this records that the rep started in case there is a problem with the bootstrapping
+  # placeholder = data.frame( TrueMean = NA,
+  #                           EstMean = NA, 
+  #                           
+  #                           TrueVar = NA,
+  #                           EstVar = NA,
+  # 
+  #                           # for "star" level of moderators
+  #                           Phat = NA,
+  #                           PhatLo = NA,
+  #                           PhatHi =  NA,
+  #                           
+  #                           # for reference level of moderators
+  #                           PhatRef =  NA,
+  #                           PhatRefLo =  NA,
+  #                           PhatRefHi =  NA,
+  #                    
+  #                           # for the difference
+  #                           #TheoryDiff = p$TheoryDiff, 
+  #                           Diff =  NA,
+  #                           DiffLo =  NA,
+  #                           DiffHi =  NA,
+  #                           
+  #                           # method of calculating CI: exponentiate logit or not?
+  #                           Method =  NA,
+  #                           
+  #                           # CI performance
+  #                           CoverPhat =  NA,
+  #                           CoverPhatRef =  NA,
+  #                           CoverDiff =  NA,
+  #                           
+  #                           PhatCIWidth =  NA,
+  #                           PhatRefCIWidth =  NA,
+  #                           DiffCIWidth =  NA,
+  #                           
+  #                           Note = "Sim failure")
+  # 
+  # 
+  # placeholder$scen.name = scen
+  # placeholder = merge( placeholder, scen.params, by = "scen.name" )
+  # 
+  # setwd("/home/groups/manishad/MRM/sim_results/long")
+  # write.csv( placeholder, paste( "long_results", jobname, ".csv", sep="_" ) )
+  # # this will be overwritten if the rep finished successfully
 }
 
 

@@ -13,6 +13,7 @@ squeue -u mmathur -t PENDING
 
 # see the datasets
 cd /home/groups/manishad/MRM/results/long
+vim /home/groups/manishad/MRM/sim_results/long/long_results_job_1_.csv
 ls -l . | egrep -c '^-'
 
 # see the errors
@@ -66,11 +67,9 @@ scp mmathur@login.sherlock.stanford.edu /home/groups/manishad/MRM/results/overal
 ####################### CLEAN UP ####################### 
 
 # clean up the directory
-rm /home/groups/manishad/MRM/results/*
-  rm /home/groups/manishad/MRM/results/short/*
-  rm /home/groups/manishad/MRM/results/long/*
+  rm /home/groups/manishad/MRM/sim_results/long/*
   
-  rm /home/groups/manishad/MRM/results/overall_stitched/*
+  rm /home/groups/manishad/MRM/sim_results/overall_stitched/*
   rm /home/groups/manishad/MRM/sbatch_files/rm*
   rm /home/groups/manishad/MRM/sbatch_files/slurm*
   

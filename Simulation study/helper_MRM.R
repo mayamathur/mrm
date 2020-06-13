@@ -8,7 +8,7 @@
 #  since users will want those
 
 
-############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMATES #############################
+############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMfATES #############################
 
 
 # list with first entry for b and second entry for t2
@@ -65,7 +65,7 @@ prop_stronger_mr = function(dat,
                     sei = sqrt(vyi) )
   
   # q shifted to set moderators to 0
-  q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star)
+  q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
   # ~~ ASSUME TAIL = ABOVE
   Phat = mean(ens.shift > q.shift)
   
@@ -131,7 +131,7 @@ sim_one_study = function( b0, # intercept
   
   # simulate study-level moderators
   Zc = rnorm( n = 1, mean = 0, sd = 1)
-  Zb = rbinom( n = 1, size =1, prob = 0.5)
+  Zb = rbinom( n = 1, size = 1, prob = 0.5)
   
   # mean (i.e., linear predictor) conditional on the moderators
   mu = b0 + bc*Zc + bb*Zb
@@ -648,49 +648,51 @@ sbatch_not_run = function(.results.singles.path,
 
 # DO NOT CHANGE THE INDENTATION IN THE BELOW OR ELSE SLURM 
 #  WILL SILENTLY IGNORE THE BATCH COMMANDS DUE TO EXTRA WHITESPACE!!
+# DO NOT CHANGE THE INDENTATION IN THE BELOW OR ELSE SLURM 
+#  WILL SILENTLY IGNORE THE BATCH COMMANDS DUE TO EXTRA WHITESPACE!!
 sbatch_skeleton <- function() {
   return(
-    "#!/bin/bash
-    #################
-    #set a job name  
-    #SBATCH --job-name=JOBNAME
-    #################  
-    #a file for job output, you can check job progress
-    #SBATCH --output=OUTFILE
-    #################
-    # a file for errors from the job
-    #SBATCH --error=ERRORFILE
-    #################
-    #time you think you need; default is one hour
-    #SBATCH --time=JOBTIME
-    #################
-    #quality of service; think of it as job priority
-    #SBATCH --qos=QUALITY
-    #################
-    #submit to both owners and normal partition
-    #SBATCH -p normal,owners
-    #################
-    #number of nodes you are requesting
-    #SBATCH --nodes=NODENUMBER
-    #################
-    #memory per node; default is 4000 MB
-    #SBATCH --mem=MEMPERNODE
-    #you could use --mem-per-cpu; they mean what we are calling cores
-    #################
-    #get emailed about job BEGIN, END, and FAIL
-    #SBATCH --mail-type=MAILTYPE
-    #################
-    #who to send email to; please change to your email
-    #SBATCH  --mail-user=USER_EMAIL
-    #################
-    #task to run per node; each node has 16 cores
-    #SBATCH --ntasks=TASKS_PER_NODE
-    #################
-    #SBATCH --cpus-per-task=CPUS_PER_TASK
-    #now run normal batch commands
-    
-    ml load R
-    srun R -f PATH_TO_R_SCRIPT ARGS_TO_R_SCRIPT")
+"#!/bin/bash
+#################
+#set a job name  
+#SBATCH --job-name=JOBNAME
+#################  
+#a file for job output, you can check job progress
+#SBATCH --output=OUTFILE
+#################
+# a file for errors from the job
+#SBATCH --error=ERRORFILE
+#################
+#time you think you need; default is one hour
+#SBATCH --time=JOBTIME
+#################
+#quality of service; think of it as job priority
+#SBATCH --qos=QUALITY
+#################
+#submit to both owners and normal partition
+#SBATCH -p normal,owners
+#################
+#number of nodes you are requesting
+#SBATCH --nodes=NODENUMBER
+#################
+#memory per node; default is 4000 MB
+#SBATCH --mem=MEMPERNODE
+#you could use --mem-per-cpu; they mean what we are calling cores
+#################
+#get emailed about job BEGIN, END, and FAIL
+#SBATCH --mail-type=MAILTYPE
+#################
+#who to send email to; please change to your email
+#SBATCH  --mail-user=USER_EMAIL
+#################
+#task to run per node; each node has 16 cores
+#SBATCH --ntasks=TASKS_PER_NODE
+#################
+#SBATCH --cpus-per-task=CPUS_PER_TASK
+#now run normal batch commands
+
+ml load R
+R -f PATH_TO_R_SCRIPT ARGS_TO_R_SCRIPT")
 }
 
 
@@ -828,5 +830,39 @@ generateSbatch <- function(sbatch_params,
 }
 
 
-########################### ANALYSIS HELPER FNS ###########################
+########################### FN: STITCH RESULTS FILES ###########################
+
+# given a folder path for results and a common beginning of file name of results files
+#   written by separate workers in parallel, stitch results files together into a
+#   single csv.
+
+stitch_files = function(.results.singles.path, .results.stitched.write.path=.results.singles.path,
+                        .name.prefix, .stitch.file.name="stitched_model_fit_results.csv") {
+  
+  .results.singles.path = "/home/groups/manishad/MRM/sim_results/long"
+  .results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched"
+  .name.prefix = "long_results"
+  .stitch.file.name="stitched.csv"
+  
+  # get list of all files in folder
+  all.files = list.files(.results.singles.path, full.names=TRUE)
+  
+  # we only want the ones whose name includes .name.prefix
+  keepers = all.files[ grep( .name.prefix, all.files ) ]
+  
+  # grab variable names from first file
+  names = names( read.csv(keepers[1] )[-1] )
+  
+  # read in and rbind the keepers
+  tables <- lapply( keepers, function(x) read.csv(x, header= TRUE) )
+  s <- do.call(rbind, tables)
+  
+  names(s) = names( read.csv(keepers[1], header= TRUE) )
+
+  if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
+  write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
+  return(s)
+}
+
+
 
