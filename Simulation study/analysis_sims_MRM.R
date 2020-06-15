@@ -1,112 +1,77 @@
 
+################################## PRELIMINARIES ##################################
 
-#################### QUICK AND DIRTY ####################
+library(dplyr)
 
-setwd("~/Desktop")
-s = read.csv("stitched.csv")
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
+#overleaf.dir = /Users/mmathur/Dropbox/Apps/Overleaf/Moderators\ in\ meta-regression/From\ R
 
-dim(s)
-length(unique(s$scen.name))
-
-# minutes per doParallel
-summary(s$rep.time) / 60
-
-# quick summary (comment out if running on Sherlock)
-analysis.vars = c( 
-  "Phat",
-  
-  "TheoryP.ref",
-  "PhatRef",
-  
-  "TheoryDiff",
-  "Diff",
-  
-  "CoverPhat",
-  "CoverPhatRef",
-  "CoverDiff",
-  
-  # to be created in mutate below:
-  "PhatBias",
-  "PhatRefBias",
-  "DiffBias")
-
-param.vars = c("scen.name",
-               "k",
-               "V",
-               "minN",
-               "true.effect.dist",
-               "TheoryP")
-
-s = s %>% group_by_at(param.vars) %>%
-  mutate( sim.reps = n() )
-
-# ~~~ remove ones with few reps
-s = s %>% filter( sim.reps > 250 )
-
-agg = s %>%
-  mutate( PhatBias = Phat - TheoryP,
-          PhatRefBias = PhatRef - TheoryP.ref,
-          DiffBias = Diff - TheoryDiff) %>%
-  group_by_at(param.vars) %>%
- # mutate( sim.reps = n() ) 
-  summarise_at( analysis.vars,
-                function(x) mean(x, na.rm = TRUE) )
-
-expect_equal( length(unique(s$scen.name)), nrow(agg) )
-
-# try to understand the CoverDiff issue
-mod = lm( CoverDiff ~ k + minN + true.effect.dist + TheoryP + V*TheoryDiff,
-          data = agg )
-summary(mod)
-# ~~ bm: look at linear predictor of this to see when expectation is at least 0.9?
-# **things that IMPROVE coverage: larger k, normal dist, larger TheoryP
-# **things that WORSEN coverage: larger V
-# I suspect the small TheoryDiff also doesn't help
-
-View( agg %>%
-        filter(k>=100 & TheoryDiff>0) %>%
-        group_by( true.effect.dist, V ) %>%
-        summarise( n(),
-          
-          mean(TheoryDiff),
-                   mean(TheoryP),
-                   mean(TheoryP.ref),
-                   
-                  mean(CoverDiff, na.rm = TRUE),
-                   min(CoverDiff, na.rm = TRUE),
-                   mean(CoverPhat, na.rm = TRUE),
-                   min(CoverPhat, na.rm = TRUE),
-                   mean(CoverPhatRef, na.rm = TRUE),
-                   min(CoverPhatRef, na.rm = TRUE)) )
-# need a pretty big k for this to work well
-# restricting to large TheoryDiff helps, too
-# k>=50 and TheoryDiff>.1 gives min coverage at least 89%
-# k>= 100 on its own doesn't work for high heterogeneity:
-
-table(agg$TheoryDiff>.1)
+setwd(prepped.data.dir)
+agg = read.csv("*agg_dataset_as_analyzed.csv")
 
 
+################################## STATS AND TABLES FOR PAPER ##################################
 
-# look at scenarios with inadequate minimum coverage for Diff
+##### All Scenarios #####
 
-bad = agg %>% filter( CoverDiff < .6 )
+# just the summary stats
+data.frame( agg %>%
+  group_by(TRUE) %>%  # for some reason, summarise doesn't work without grouping...
+  summarise( n.scens = n(),
+             
+             PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
+             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
+             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+             
+             PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
+             MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
+             MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
+             
+             DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
+             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
+             MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
 
-# **coverage for difference is pretty bad so far, but I think the issue may be that we 
-#  need larger TheoryDiff (these scenarios only go up to 0.09, but we have other scenarios that go up to 0.49)
+# BM: working on these :)
+# table for paper
+t1 = data.frame( agg %>%
+                   group_by(k, V) %>%  # for some reason, summarise doesn't work without grouping...
+                   summarise( n.scens = n(),
+                              
+                              PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
+                              MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
+                              MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+                              
+                              PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
+                              MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
+                              MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
+                              
+                              DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
+                              MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
+                              MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
 
-# look for a bad scenario
-View( agg[ !is.na(agg$CoverPhat) & agg$CoverPhat<.85,] )
 
-# bm: maybe look at this one locally
-# k=100	V=0.04	minN=800	normal	TheoryP=0.1
+##### k>=100, TheoryDiff > 0.05 #####
+# just the summary stats
+data.frame( agg %>%
+  #filter( k >= 100 & TheoryDiff >.05) %>%
+  filter( k >= 100 & TheoryDiff >.05) %>%
+  group_by(TRUE) %>%  # for some reason, summarise doesn't work without grouping...
+  summarise( n.scens = n(),
+             
+             # PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
+             # MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
+             # MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+             # 
+             # PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
+             # MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
+             # MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
+             # 
+             # DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
+             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
+             MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
 
-
-#################### PLOT ####################
-
-
-
-
-
+t2
 
 
 

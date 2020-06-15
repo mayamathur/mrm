@@ -34,7 +34,7 @@ nano /home/groups/manishad/MRM/results/overall_stitched/sti*
 scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Code\ \(git\)/Simulation\ study/* mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
 
 # Sherlock -> Desktop
-scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/results/overall_stitched/stitched.csv ~/Desktop
+scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
 
 
 scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/* ~/Desktop

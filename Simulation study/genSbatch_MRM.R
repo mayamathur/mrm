@@ -189,7 +189,7 @@ source("functions_MRM.R")
 missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
                               "/home/groups/manishad/MRM/sim_results",
                               .name.prefix = "long_results",
-                              .max.sbatch.num = 14400 )
+                              .max.sbatch.num = 1440 )
 
 
 

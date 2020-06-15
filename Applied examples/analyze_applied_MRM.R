@@ -16,13 +16,42 @@ code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression
 setwd(code.dir)
 source("helper_applied_MRM.R")
 
-
-################################## RITCHIE ################################## 
+################################## SUMMARY STATS ################################## 
 
 summary(dr$age.fu)
 
-# older age at F/U decreases effect size
+nrow(dr)
+
+length(unique(dr$study))
+
+################################## THEIR ANALYSES ################################## 
+
+##### Get CI for Their Overall Estimate Based on CI #####
+
+# page 1362
+3.394 + c(-1, 1) * 0.503 * qnorm(.975)
+
+# page 1363
+-0.026 + c(-1, 1) * 0.012 * qnorm(.975)
+
+
+################################## REGULAR PHAT ################################## 
+
 q = 2  # IQ pts/year
+boot.reps = 1000
+
+Phat = prop_stronger(q = q, 
+                     tail = "above",
+                     dat = dr,
+                     R = boot.reps,
+                     yi.name = "yi",
+                     vi.name = "vi")
+
+
+################################## META-REGRESSIVE PHAT AND DIFFERENCE ################################## 
+
+# older age at F/U decreases effect size
+
 z = 50
 z0 = 10
 ( stats = get_phat_ritchie(dat = dr,
@@ -31,7 +60,12 @@ z0 = 10
                            z0 = z0,
                            return.meta = TRUE) )
 
-boot.reps = 1000
+# look at meta-regression coefficients
+stats[[1]]
+
+# and Phats
+stats[[2]]
+
 
 boot.res = boot( data = dr, 
                  parallel = "multicore",

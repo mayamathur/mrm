@@ -13,13 +13,40 @@ source("helper_MRM.R")
 ######## STITCH LONG FILES ########
 
 library(data.table, lib.loc = "/home/groups/manishad/Rpackages/")
-s = stitch_files(.results.singles.path = "/home/groups/manishad/MRM/sim_results/long",
-                 .results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched",
-                 .name.prefix = "long_results",
-                 .stitch.file.name="stitched.csv")
+# s = stitch_files(.results.singles.path = "/home/groups/manishad/MRM/sim_results/long",
+#                  .results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched",
+#                  .name.prefix = "long_results",
+#                  .stitch.file.name="stitched.csv")
+
+.results.singles.path = "/home/groups/manishad/MRM/sim_results/long"
+.results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched"
+.name.prefix = "long_results"
+.stitch.file.name="stitched.csv"
+
+# get list of all files in folder
+all.files = list.files(.results.singles.path, full.names=TRUE)
+
+# we only want the ones whose name includes .name.prefix
+keepers = all.files[ grep( .name.prefix, all.files ) ]
+
+# grab variable names from first file
+names = names( read.csv(keepers[1] )[-1] )
+
+# read in and rbind the keepers
+tables <- lapply( keepers, function(x) read.csv(x, header= TRUE) )
+s <- do.call(rbind, tables)
+
+names(s) = names( read.csv(keepers[1], header= TRUE) )
+
+if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
+write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
 
 
-  
+# look for missed jobs
+missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
+                "/home/groups/manishad/MRM/sim_results",
+                .name.prefix = "long",
+                .max.sbatch.num = 1440)
 
 
 

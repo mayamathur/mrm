@@ -155,7 +155,8 @@ if ( run.local == TRUE ) {
   library(dplyr)
   library(boot)
   library(purrr)
-  
+  library(robumeta)
+  library(MetaUtility)
   
   # # ~~~ DEBUGGING: FOR CLUSTER
   # # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION

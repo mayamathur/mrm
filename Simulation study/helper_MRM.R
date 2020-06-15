@@ -839,10 +839,10 @@ generateSbatch <- function(sbatch_params,
 stitch_files = function(.results.singles.path, .results.stitched.write.path=.results.singles.path,
                         .name.prefix, .stitch.file.name="stitched_model_fit_results.csv") {
   
-  .results.singles.path = "/home/groups/manishad/MRM/sim_results/long"
-  .results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched"
-  .name.prefix = "long_results"
-  .stitch.file.name="stitched.csv"
+  # .results.singles.path = "/home/groups/manishad/MRM/sim_results/long"
+  # .results.stitched.write.path = "/home/groups/manishad/MRM/sim_results/overall_stitched"
+  # .name.prefix = "long_results"
+  # .stitch.file.name="stitched.csv"
   
   # get list of all files in folder
   all.files = list.files(.results.singles.path, full.names=TRUE)
