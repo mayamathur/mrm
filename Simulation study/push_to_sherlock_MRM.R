@@ -18,7 +18,7 @@ ls -l . | egrep -c '^-'
 
 # see the errors
 nano /home/groups/manishad/MRM/sbatch_files/slurm*
-  nano /home/groups/manishad/MRM/sbatch_files/rm_1.err
+  vim /home/groups/manishad/MRM/sbatch_files/rm_1406.err
 
 # see the scen parameters
 nano /home/groups/manishad/MRM/scen_params.csv

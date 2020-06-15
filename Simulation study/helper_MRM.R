@@ -81,8 +81,6 @@ prop_stronger_mr = function(dat,
     Phat.diff = NA
   }
 
-
-  
   if ( simple.output == TRUE ) return(Phat)
   if ( simple.output == FALSE ) {
     return( data.frame( Phat = Phat,
