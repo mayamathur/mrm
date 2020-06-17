@@ -24,7 +24,7 @@ nano /home/groups/manishad/MRM/sbatch_files/slurm*
 nano /home/groups/manishad/MRM/scen_params.csv
 
 # see the stitched results
-nano /home/groups/manishad/MRM/results/overall_stitched/sti*
+nano /home/groups/manishad/MRM/sim_results/overall_stitched/sti*
   
   
   

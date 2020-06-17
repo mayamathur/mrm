@@ -20,32 +20,34 @@ library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
 
 # full set of scenarios
 ( scen.params = make_scen_params( method = "boot.whole",
-                                k = rev(c(10, 20, 50, 100, 150)),
-                                b0 = 0, # intercept
-                                bc = 0.5, # effect of continuous moderator
-                                bb = 1, # effect of binary moderator
-                                
-                                zc.star = 0.5,  # "active" level of moderator to consider
-                                zb.star = 1,
-                                
-                                zc.ref = 2,  # reference levels of moderator to consider
-                                zb.ref = 0,
-
-                                # Previous choices:
-                                # zc.star = 0.5,  # "active" level of moderator to consider
-                                # zb.star = 1,
-                                # 
-                                # zc.ref = 2,  # reference levels of moderator to consider
-                                # zb.ref = 0,
-
-                                V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
-                                muN = NA,  # just a placeholder; to be filled in later
-                                minN = c(50, 800),
-                                sd.w = c(1),
-                                tail = "above",
-                                true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
-                                TheoryP = c(0.05, 0.1, 0.2, 0.5),
-                                start.at = 1 ) )
+                                  calib.method = "MR",
+                                  
+                                  k = rev(c(10, 20, 50, 100, 150)),
+                                  b0 = 0, # intercept
+                                  bc = 0.5, # effect of continuous moderator
+                                  bb = 1, # effect of binary moderator
+                                  
+                                  zc.star = 0.5,  # "active" level of moderator to consider
+                                  zb.star = 1,
+                                  
+                                  zc.ref = 2,  # reference levels of moderator to consider
+                                  zb.ref = 0,
+                                  
+                                  # Previous choices:
+                                  # zc.star = 0.5,  # "active" level of moderator to consider
+                                  # zb.star = 1,
+                                  # 
+                                  # zc.ref = 2,  # reference levels of moderator to consider
+                                  # zb.ref = 0,
+                                  
+                                  V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
+                                  muN = NA,  # just a placeholder; to be filled in later
+                                  minN = c(50, 800),
+                                  sd.w = c(1),
+                                  tail = "above",
+                                  true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
+                                  TheoryP = c(0.05, 0.1, 0.2, 0.5),
+                                  start.at = 1 ) )
 
 # make sure there's a good range here
 summary(scen.params$TheoryP)  # this won't change

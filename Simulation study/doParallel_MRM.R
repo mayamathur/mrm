@@ -117,6 +117,7 @@ if ( run.local == TRUE ) {
   
   # just one scenario
   ( scen.params = make_scen_params( method = "boot.whole",
+                                    calib.method = "MR",
                                     k = c(50),
                                     b0 = 0, # intercept
                                     bc = 0.5, # effect of continuous moderator
@@ -134,7 +135,7 @@ if ( run.local == TRUE ) {
                                     sd.w = c(1),
                                     tail = "above",
                                     true.effect.dist = c("normal"), # # "expo", "normal", "unif2", "t.scaled"
-                                    TheoryP = c(0.05),
+                                    TheoryP = c(0.2),
                                     start.at = 1 ) )
   # just to see it
   data.frame(scen.params)
@@ -146,7 +147,7 @@ if ( run.local == TRUE ) {
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 100
+  sim.reps = 5
   boot.reps = 500  # ~~ temp only
   
   
@@ -180,15 +181,6 @@ if ( run.local == TRUE ) {
 
 ########################### RUN SIMULATION (CLUSTER) ###########################
 
-# global parameters for all scenarios
-#CI.level = 0.95
-
-# which methods should we run?
-# it always runs parametric 
-# should list all of them unless we're re-running an existing scenario with a new method
-#methods.to.run = c("Boot", "NP ensemble", "NP sign test")
-
-
 rep.time = system.time({
   rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
     
@@ -216,7 +208,16 @@ rep.time = system.time({
                                zc.star = p$zc.star,
                                zb.star = p$zb.star,
                                zc.ref = p$zc.ref,
-                               zb.ref = p$zb.ref )
+                               zb.ref = p$zb.ref,
+                               calib.method = p$calib.method )
+    
+    # # TEST ONLY: COMPARISON TO DL METHOD
+    # prop_stronger_mr(d,
+    #                  zc.star = p$zc.star,
+    #                  zb.star = p$zb.star,
+    #                  zc.ref = p$zc.ref,
+    #                  zb.ref = p$zb.ref,
+    #                  calib.method = "DL" )
     
     
     EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )

@@ -25,10 +25,14 @@ get_phat_ritchie = function(dat,  # dataset
   # calculate point estimates shifted to "set" effect modifiers to 0
   # i.e., Equation (S.2) in Appendix
   dat$yi.shift = dat$yi - dat$linpredZ  # shifted to have moderators set to 0
-  ens.shift = MetaUtility::calib_ests(yi = dat$yi.shift,
-                                      sei = sqrt(dat$vi) )
   
-  # calculate threshold shifted to "set" effect modifiers to z
+  # # the calib_ests version
+  # ens.shift = MetaUtility::calib_ests(yi = dat$yi.shift,
+  #                                     sei = sqrt(dat$vi) )
+  # the meta-regressive version
+  ens.shift = c(mod$b.r[1]) + sqrt( c(t2) / ( c(t2) + dat$vi) ) * ( dat$yi.shift - c(mod$b.r[1]) )
+    
+  # calculate threshold shifted to "set" effect modifiers to 0
   q.shift = q - (bhat*z)
   
   # sample proportion of shifted estimates greater than shifted threshold

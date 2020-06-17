@@ -18,11 +18,22 @@ source("helper_applied_MRM.R")
 setwd(prepped.data.dir)
 dr = read.csv("ritchie_data_prepped.csv")
 
-################################## SUMMARY STATS ################################## 
+################################## DESCRIPTIVE ################################## 
 
-summary(dr$age.fu)
+# number of estimates and of papers
 nrow(dr)
 length(unique(dr$study))
+
+# effect modifier of interest
+summary(dr$age.fu)
+
+# for control-prior-IQ studies, the age of baseline IQ (max 20)
+summary(dr$Age.at.early.test)
+
+# for policy-change studies, age at intervention (max 19)
+summary(dr$Age.at.intervention)
+dr %>% filter( !is.na(Age.at.early.test) & Age.at.early.test>19 )
+
 
 ################################## THEIR ANALYSES ################################## 
 
@@ -88,7 +99,7 @@ boot.res = boot( data = dr,
 # difference (50 vs. 10): -32% [-40%, -16%]
 
 
-################################## META-REGRESSIVE PHAT AND DIFFERENCE ################################## 
+################################## COMPARE METHODS ################################## 
 
 ##### Method #1 (As in Sim Study and Code Above) #####
 # regress effect size on age at F/U

@@ -34,6 +34,7 @@ prop_stronger_mr = function(dat,
                             # if also looking at difference:
                             zb.ref = NA,
                             zc.ref = NA,
+                            calib.method = "DL",
                             simple.output = FALSE) {  # for ease with boot() fn
   
   # # test only
@@ -61,14 +62,24 @@ prop_stronger_mr = function(dat,
   
   ##### Try Shifting the yis Themselves to Use Existing Package and Sims #####
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  # shifted to have moderators set to 0
-  ens.shift = calib_ests(yi = dat$yi.shift,
-                    sei = sqrt(vyi) )
+  
+  # calibration method #1: shift point estimates themselves, then use regular DL
+  #  meta-analysis
+  if ( calib.method == "DL" ){
+    ens.shift = calib_ests(yi = dat$yi.shift,
+                           sei = sqrt(vyi) )
+  }
+  # calibration method #2: directly use the meta-regressive estimates
+  if ( calib.method == "MR" ) {
+    ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
+  }
   
   # q shifted to set moderators to 0
   q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
-  # ~~ ASSUME TAIL = ABOVE
+  # ~~ ASSUMES TAIL = ABOVE
   Phat = mean(ens.shift > q.shift)
   
+  ##### Reference Level and Difference #####
   if ( !is.na(zc.ref) & !is.na(zb.ref) ) {
 
     q.shift.ref = p$q - (bhatc * zc.ref) - (bhatb * zb.ref)
@@ -293,6 +304,11 @@ qunif2 = function(p,
 # # works :) 
 
 
+I2 = function(t2, N) {
+  t2 / (t2 + 4/N)
+}
+
+
 ########################### FN: SIMULATE 1 WHOLE DATASET ###########################
 # Vw = within-study variances
 # Vwv = variance of within-study variances
@@ -373,6 +389,7 @@ covers = function( truth, lo, hi ) {
 # all arguments that are scen parameters can be vectors
 #  for use in expand_grid
 make_scen_params = function( method, 
+                             calib.method,
                              k,
                              b0, # intercept
                              bc, # effect of continuous moderator
@@ -396,6 +413,7 @@ make_scen_params = function( method,
   
   # full set of scenarios
   scen.params = expand.grid( method = method,
+                             calib.method = calib.method,
                              k = k,
                              b0 = b0, 
                              bc = bc, 

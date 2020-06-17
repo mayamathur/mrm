@@ -41,6 +41,14 @@ names(s) = names( read.csv(keepers[1], header= TRUE) )
 if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
 write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
 
+# are we there yet?
+dim(s)
+length(unique(s$scen.name))
+
+
+# Sherlock -> Desktop
+scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
+
 
 # look for missed jobs
 missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",

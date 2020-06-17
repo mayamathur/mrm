@@ -82,8 +82,6 @@ s2 = s %>%
   group_by_at(param.vars) %>%
   mutate_at( analysis.vars,
              function(x) mean(x, na.rm = TRUE) )
-
-table(s2$bca.success[ s2$scen.name == 26])  # ~~~ remove
 # # sanity check
 # # SD should always be 0 because we overwrote the variables after grouping on scen.name
 # data.frame( s2 %>% group_by(scen.name) %>%
@@ -92,7 +90,7 @@ table(s2$bca.success[ s2$scen.name == 26])  # ~~~ remove
 # make aggregated data
 agg = s2[ !duplicated(s2$scen.name),]
 
-# **number of scenarios removed due to frequent BCA failure
+# **proportion of scenarios removed due to frequent BCA failure
 # e.g., because Phatdiff was almost 0, and k was so large that every boot iterate had PhatDiff = 0
 mean(agg$bca.success < 0.05)
 
@@ -106,7 +104,6 @@ write.csv(agg, "agg_dataset_with_bca_failures_MRM.csv")
 
 agg = agg %>% filter(bca.success > 0.05)
 dim(agg)
-
 
 # simulation reps per scenario
 summary(agg$sim.reps)
