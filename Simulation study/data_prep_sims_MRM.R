@@ -1,18 +1,38 @@
 
+# ~~~ move stitched to correct folder and save its code archive
+
 # "**" = result reported in paper
 
 ################################## PRELIMINARIES ##################################
 
 library(dplyr)
 
-stitched.data.dir = "~/Desktop"
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
+# we first ran all results with calib.method = "DL" (two-stage method), although we didn't
+#  yet have that as a parameter
+# then we introduced the calib.method parameter so we could manipulate it, and we ran
+#  calib.method = "MR" (one-stage) as a new round of simulations
+
+# location for calib.method = DL results
+stitched.data.dir1 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-15 all with calib.method = DL"
+
+# location for calib.method = MR results
+stitched.data.dir2 = "~/Desktop"
+
+# where to put the merged and prepped results
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
 
 
 ################################## DATA PREP ##################################
 
-setwd(stitched.data.dir)
-s = read.csv("stitched.csv")
+setwd(stitched.data.dir1)
+s1 = read.csv("stitched.csv")
+s1$calib.method = "DL"
+
+setwd(stitched.data.dir2)
+s2 = read.csv("stitched.csv")
+
+# merge them
+s = rbind(s1, s2)
 
 dim(s)
 length(unique(s$scen.name))  # of 240 total
@@ -36,12 +56,20 @@ s$Note2 = as.character(s$Note)
 s$Note2[ grepl( pattern = "computationally singular", x = s$Note ) == TRUE ] = "system is computationally singular"
 s$Note2[ grepl( pattern = "Lapack", x = s$Note ) == TRUE ] = "Lapack routine dgesv: system is exactly singular" 
 s$Note2[ grepl( pattern = "estimated adjustment 'w' is infinite", x = s$Note ) == TRUE ] = "estimated adjustment 'w' is infinite" 
+
+# type of failures
 prop.table( table(s$Note2, useNA = "ifany") )
+
+# proportion failures by calib.method
+s %>% group_by(calib.method) %>%
+  summarise( mean( !is.na(s$Note2) ) )
+
 
 
 ##### Outcome and Parameter Variables #####
 # "outcome" variables used in analysis
 analysis.vars = c( 
+
   "Phat",
   
   "TheoryP.ref",
@@ -54,12 +82,23 @@ analysis.vars = c(
   "CoverPhatRef",
   "CoverDiff",
   
+  "PhatCIWidth",
+  "PhatRefCIWidth",
+  "DiffCIWidth",
+  
   # to be created in mutate below:
   "PhatAbsBias",
   "PhatRefAbsBias",
-  "DiffAbsBias")
+  "DiffAbsBias",
+  
+  "PhatBias",
+  "PhatRefBias",
+  "DiffBias",
+  
+  "EstMeanAbsBias")
 
 param.vars = c("scen.name",
+               "calib.method",
                "k",
                "V",
                "minN",
@@ -69,11 +108,15 @@ param.vars = c("scen.name",
 
 ################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
-s2 = s %>%
+s3 = s %>%
   # iterate-level state:
-  mutate( PhatAbsBias = abs(Phat - TheoryP),
-          PhatRefAbsBias = abs(PhatRef - TheoryP.ref),
-          DiffAbsBias = abs(Diff - TheoryDiff) ) %>%
+  mutate( PhatBias = (Phat - TheoryP),
+          DiffBias = (Diff - TheoryDiff),
+          
+          PhatAbsBias = abs(Phat - TheoryP),
+          DiffAbsBias = abs(Diff - TheoryDiff),
+          
+          EstMeanAbsBias = abs(EstMean - TrueMean)) %>%
   # scenario-level stats:
   group_by_at(param.vars) %>%
   mutate( sim.reps = n(),
@@ -84,24 +127,38 @@ s2 = s %>%
              function(x) mean(x, na.rm = TRUE) )
 # # sanity check
 # # SD should always be 0 because we overwrote the variables after grouping on scen.name
-# data.frame( s2 %>% group_by(scen.name) %>%
+# data.frame( s3 %>% group_by(scen.name) %>%
 #   summarise( sd(CoverPhat) ) )
 
-# make aggregated data
-agg = s2[ !duplicated(s2$scen.name),]
+# recode calib.method
+s3$calib.method.pretty = NA
+s3$calib.method.pretty[ s3$calib.method == "DL" ] = "Two-stage"
+s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
+
+# make aggregated data by keeping only first row for each 
+#  combination of scenario name and calib.method
+s3$unique.scen = paste(s3$scen.name, s3$calib.method)
+agg = s3[ !duplicated(s3$unique.scen), ]
+dim(agg)  # should be 240 * 2 methods = 480
+
+# note some scenarios always have NA for coverage:
+table(is.na(s3$CoverDiff)) ##??
+
+
 
 # **proportion of scenarios removed due to frequent BCA failure
 # e.g., because Phatdiff was almost 0, and k was so large that every boot iterate had PhatDiff = 0
 mean(agg$bca.success < 0.05)
 
 ##### Save Intermediate Datasets #####
-setwd(results.dir)
-write.csv(s2, "s2_dataset_MRM.csv")
+setwd(prepped.data.dir)
+write.csv(s3, "s3_dataset_MRM.csv")
 write.csv(agg, "agg_dataset_with_bca_failures_MRM.csv")
 
 
-################################## FINAL ANALYSIS DATASET ##################################
+################################## MAKE FINAL ANALYSIS DATASET ##################################
 
+# remove scenarios with too many BCa failures
 agg = agg %>% filter(bca.success > 0.05)
 dim(agg)
 

@@ -1,8 +1,5 @@
 
-#### NEXT UP: 
-# - Record I^2?
-# - See in new simulations if k=150 works for smaller diffs
-
+# audited 2020-6-17
 
 # because Sherlock 2.0 restores previous workspace
 rm( list = ls() )
@@ -116,8 +113,8 @@ if ( run.local == TRUE ) {
   source("helper_MRM.R")
   
   # just one scenario
-  ( scen.params = make_scen_params( method = "boot.whole",
-                                    calib.method = "MR",
+  ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
+                                    calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
                                     k = c(50),
                                     b0 = 0, # intercept
                                     bc = 0.5, # effect of continuous moderator
@@ -134,7 +131,7 @@ if ( run.local == TRUE ) {
                                     minN = c(100),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("normal"), # # "expo", "normal", "unif2", "t.scaled"
+                                    true.effect.dist = c("normal"), 
                                     TheoryP = c(0.2),
                                     start.at = 1 ) )
   # just to see it
@@ -211,15 +208,6 @@ rep.time = system.time({
                                zb.ref = p$zb.ref,
                                calib.method = p$calib.method )
     
-    # # TEST ONLY: COMPARISON TO DL METHOD
-    # prop_stronger_mr(d,
-    #                  zc.star = p$zc.star,
-    #                  zb.star = p$zb.star,
-    #                  zc.ref = p$zc.ref,
-    #                  zb.ref = p$zb.ref,
-    #                  calib.method = "DL" )
-    
-    
     EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
     ##### Phat Difference #####
@@ -227,7 +215,7 @@ rep.time = system.time({
     PhatDiff = d.stats$Phat.diff
     
     ##### Bootstrap #####
-    # option to not bootstrap
+    # currently boot.whole is the only method
     if ( p$method == "boot.whole" ) {
       
       Note = NA
@@ -255,13 +243,6 @@ rep.time = system.time({
         #head( boot.res$t )
         
         bootCIs = get_boot_CIs(boot.res, "bca", n.ests = 3)
-        
-        # for one estimate only
-        # bootCIs = boot.ci(boot.res, type="bca")
-        # boot.lo = bootCIs$bca[4]
-        # boot.hi = bootCIs$bca[5]
-        # boot.median = median(boot.res$t)  # median Phat in bootstrap iterates
-        
       }, error = function(err){
         # one list item for each stat of interest (3),
         #  and one sub-entry for lower/upper CI limit
@@ -276,13 +257,9 @@ rep.time = system.time({
       rows = data.frame( 
                       TrueMean = TrueMean,
                       EstMean = EstMean, 
-                      # would need to combine the vars for this:
-                      #MeanCover = covers( p$mu, summary(m)$ci.lb, summary(m)$ci.ub ),
-                      
+ 
                       TrueVar = p$V,
                       EstVar = d.stats$t2,
-                      # VarCover = covers( p$V, CIs$random["tau^2", "ci.lb"],
-                      #                    CIs$random["tau^2", "ci.ub"] ),
                       
                       # for "star" level of moderators
                       Phat = d.stats$Phat,
@@ -290,15 +267,11 @@ rep.time = system.time({
                       PhatHi = bootCIs[[1]][2],
                       
                       # for reference level of moderators
-                      PhatRef = d.stats$Phat,
+                      PhatRef = d.stats$Phat,  # ~~~~ THIS LINE IS AN ERROR! IT'S JUST PHAT(Z) AGAIN. 
                       PhatRefLo = bootCIs[[2]][1],
                       PhatRefHi = bootCIs[[2]][2],
  
-                      #Phat.bt.med = boot.median,  # note that this is the median of the bootstrap iterates
-                      #Phat.bt.bias = boot.median - p$TheoryP, 
-                      
                       # for the difference
-                      #TheoryDiff = p$TheoryDiff, 
                       Diff = PhatDiff,
                       DiffLo = bootCIs[[3]][1],
                       DiffHi = bootCIs[[3]][2],

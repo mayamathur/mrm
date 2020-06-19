@@ -1,4 +1,6 @@
 
+# code audited 2020-6-17
+
 ########################### FN: PHAT FOR META-REGRESSION ###########################
 
 get_phat_ritchie = function(dat,  # dataset

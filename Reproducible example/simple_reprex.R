@@ -1,3 +1,4 @@
+# code audited 2020-6-17
 
 ############################ LOAD PACKAGES ############################
 library(robumeta)
@@ -5,11 +6,13 @@ library(metafor)
 library(boot)
 
 ############################ HELPER FUNCTIONS ############################
-# get BCa-bootstrapped confidence intervals for a vector of parameters (not just one)
+##### Get BCa-bootstrapped confidence intervals for a vector of parameters (not just one) #####
 # boot.res: an object from boot()
 # type: what kind of bootstrapping to use? (as in boot.ci())
 # n.ests: how many parameters were estimated?
-get_boot_CIs = function(boot.res, type = "bca", n.ests) {
+get_boot_CIs = function(boot.res,
+                        type = "bca",
+                        n.ests) {
   bootCIs = lapply( 1:n.ests, function(x) boot.ci(boot.res, type = type, index = x) )
   
   # list with one entry per estimate
@@ -19,7 +22,7 @@ get_boot_CIs = function(boot.res, type = "bca", n.ests) {
                                              bootCIs[[x]][[4]][5] ) )
 }
 
-# return Phat(z), Phat(z0), and Phat(z) - Phat(z0)
+##### Return Phat(z), Phat(z0), and Phat(z) - Phat(z0) #####
 # important: this function would need to be modified somewhat to use it on another dataset (see comments therein)
 # dat: the dataset
 # q: threshold for a meaningfully strong effect size (function assumes we are considering effects ABOVE the threshold)
@@ -77,13 +80,13 @@ get_phat_reprex = function(dat,
 
 ############################ ANALYZE FAKE DATA ############################
 # read in the fake data
-# these were generated similarly to data from the simulation study with tau^2 = 0.04^2, E[N] = 100, and normal true effects
+# these were generated similarly to data from the simulation study with tau^2 = 0.04, E[N] = 100, and normal true effects
 # variable names:
 # yi: point estimate
 # vyi: variance
 # Zc: continuous effect modifier
 # Zb: binary effect modifier
-d = read.csv("reprex_fake_data.csv", row.names = FALSE)
+d = read.csv("reprex_fake_data.csv")
 head(d)
 
 # define comparisons of interest

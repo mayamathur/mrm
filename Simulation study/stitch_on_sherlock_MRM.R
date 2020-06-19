@@ -50,12 +50,22 @@ length(unique(s$scen.name))
 scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
 
 
+
+
+
 # look for missed jobs
 missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
                 "/home/groups/manishad/MRM/sim_results",
                 .name.prefix = "long",
                 .max.sbatch.num = 1440)
+# 1440
 
+path = "/home/groups/manishad/MRM"
+
+setwd( paste(path, "/sbatch_files", sep="") )
+for (i in missed.nums) {
+  system( paste("sbatch -p qsu,owners,normal /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
+}
 
 
 

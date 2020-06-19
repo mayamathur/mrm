@@ -3,23 +3,28 @@
 
 # compare CI width for the two methods
 
-
-
 ################################## PRELIMINARIES ##################################
 
 library(dplyr)
 library(xtable)
 
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
-results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
+results.dir = prepped.data.dir
 #overleaf.dir = /Users/mmathur/Dropbox/Apps/Overleaf/Moderators\ in\ meta-regression/From\ R
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
 setwd(prepped.data.dir)
-agg = read.csv("*agg_dataset_as_analyzed.csv")
+agg.all = read.csv("*agg_dataset_as_analyzed.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
+
+# which methods should we analyze?
+# to.analyze = "Two-stage"
+to.analyze = "One-stage"
+# to.analyze = "Two-stage"
+# to.analyze = c("One-stage", "Two-stage")
+agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 
 ################################## I^2 PARAMETERIZATION OF HETEROGENEITY ##################################
 
@@ -47,7 +52,7 @@ summary(mod)
 # **things that don't matter much: minN, true effect distribution
 
 # and for bias
-mod = lm( PhatAbsBias ~ k + minN + true.effect.dist + V + TheoryP + TheoryDiff,
+mod = lm( PhatAbsBias ~ k + minN + true.effect.dist + V + TheoryP,
           data = agg )
 summary(mod)
 
@@ -56,82 +61,24 @@ summary(mod)
 
 ################################## STATS AND TABLES FOR PAPER: ALL SCENARIOS ##################################
 
+
 ##### Summary Stats Reported In-line #####
 
-data.frame( agg %>%
-  group_by(TRUE) %>%  # for some reason, summarise doesn't work without grouping...
-  summarise( n.scens = n(),
-             
-             PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
-             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
-             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
-             
-             PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
-             MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
-             MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
-             
-             DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
-             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-             MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
+my_summarise(agg)
+
 
 ##### Summary Table #####
-t1 = data.frame( agg %>%
-                   group_by(k, V) %>%  # for some reason, summarise doesn't work without grouping...
-                   summarise( n.scens = n(),
-                              
-                              PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
-                              MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
-                              MinCoverPhat = min(CoverPhat, na.rm = TRUE),
-                              
-                              PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
-                              MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
-                              MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
-                              
-                              DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
-                              MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-                              MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
-
-t1 = round(t1, 2)
+( t1 = data.frame( my_summarise( agg %>% group_by(k, V) ) ) )
 print( xtable(t1), include.rownames = FALSE )
+
 
 
 ################################## STATS AND TABLES FOR PAPER: K>=100, THEORYP > 0.05 ##################################
 
 ##### Summary Stats Reported In-line #####
-data.frame( agg %>%
-  #filter( k >= 100 & TheoryDiff >.05) %>%
-  filter( k >= 100 & TheoryDiff >.05) %>%
-  group_by(TRUE) %>%  # for some reason, summarise doesn't work without grouping...
-  summarise( n.scens = n(),
-             
-             PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
-             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
-             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+my_summarise( agg %>% filter( k >= 100 & Diff >.05) )
 
-             PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
-             MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
-             MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
-
-             DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
-             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-             MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
 
 ##### Summary Table #####
-t2 = data.frame( agg %>%
-              filter( k >= 100 & TheoryDiff >.05) %>%
-              group_by(k, V) %>%  # for some reason, summarise doesn't work without grouping...
-              summarise( n.scens = n(),
-                         
-                         PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
-                         MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
-                         MinCoverPhat = min(CoverPhat, na.rm = TRUE),
-                         
-                         PhatRefAbsBias = mean(PhatRefAbsBias, na.rm = TRUE),
-                         MeanCoverPhatRef = mean(CoverPhatRef, na.rm = TRUE),
-                         MinCoverPhatRef = min(CoverPhatRef, na.rm = TRUE),
-                         
-                         DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
-                         MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-                         MinCoverDiff = min(CoverDiff, na.rm = TRUE) ) )
-t2 = round(t2, 2)
+( t2 = data.frame( my_summarise( agg %>% filter( k >= 100 & Diff >.05) %>% group_by(k, V) ) ) )
 print( xtable(t2), include.rownames = FALSE )

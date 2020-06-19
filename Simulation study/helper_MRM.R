@@ -1,15 +1,25 @@
 
+# audited the post-NPPhat parts 2020-6-17
 
 
-
-# helper fns for simulation study
-# the fn for computing the estimators themselves are in stronger_than_function.R
-
-#  since users will want those
-
+my_summarise = function(dat){
+  round( dat %>% summarise( n.scens = n(),
+                            
+                            PhatBias = mean(PhatBias, na.rm = TRUE),
+                            PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
+                            MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
+                            MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+                            
+                            DiffBias = mean(DiffBias, na.rm = TRUE),
+                            DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
+                            MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
+                            MinCoverDiff = min(CoverDiff, na.rm = TRUE) ),
+         
+         #EstMeanAbsBias = mean(EstMeanAbsBias, na.rm = TRUE) ),
+         2 )
+}
 
 ############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMfATES #############################
-
 
 # list with first entry for b and second entry for t2
 # n.ests: how many parameters were estimated?
@@ -22,7 +32,6 @@ get_boot_CIs = function(boot.res, type, n.ests) {
   bootCIs = lapply( 1:n.ests, function(x) c( bootCIs[[x]][[4]][4],
                                              bootCIs[[x]][[4]][5] ) )
 }
-
 
 
 ########################### FN: PHAT FOR META-REGRESSION ###########################
@@ -60,23 +69,25 @@ prop_stronger_mr = function(dat,
   t2 = m$mod_info$tau.sq
   
   
-  ##### Try Shifting the yis Themselves to Use Existing Package and Sims #####
-  dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  # shifted to have moderators set to 0
+  # point estimates shifted to have Z = 0
+  dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  
   
-  # calibration method #1: shift point estimates themselves, then use regular DL
-  #  meta-analysis
+  ##### Two-Stage Calibration Method ("DL") #####
+  # use regular meta-analysis on the shifted point estimates
   if ( calib.method == "DL" ){
     ens.shift = calib_ests(yi = dat$yi.shift,
                            sei = sqrt(vyi) )
   }
-  # calibration method #2: directly use the meta-regressive estimates
+  
+  ##### One-Stage Calibration Method ("MR") #####
+  # directly use the meta-regressive estimates in Equation (1)
   if ( calib.method == "MR" ) {
     ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
   }
   
   # q shifted to set moderators to 0
   q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
-  # ~~ ASSUMES TAIL = ABOVE
+  # ~~ NOTE: ASSUMES TAIL = ABOVE
   Phat = mean(ens.shift > q.shift)
   
   ##### Reference Level and Difference #####
@@ -114,7 +125,7 @@ prop_stronger_mr = function(dat,
 # minN = minimum sample size 
 # sd.w = SD within each group (2-group experiment)
 
-# updated 2020-6-7
+# updated 2020-6-7 from NPPhat code
 sim_one_study = function( b0, # intercept
                           bc, # effect of continuous moderator
                           bb, # effect of binary moderator
@@ -144,7 +155,7 @@ sim_one_study = function( b0, # intercept
   
   # mean (i.e., linear predictor) conditional on the moderators
   mu = b0 + bc*Zc + bb*Zb
-  
+  # all that follows is that same as in NPPhat
   
   ##### Draw a Single Population True Effect for This Study #####
   if ( true.effect.dist == "normal" ) {
@@ -194,114 +205,6 @@ sim_one_study = function( b0, # intercept
   
   return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
 }
-
-
-##################### FNs FOR UNIFORM MIXTURE #####################
-
-# generate from a uniform mixture with endpoints [-b, -a] and [a, b]
-#  but shifted so that the grand mean is mu
-runif2 = function(n,
-                  mu,
-                  V) {
-  # calculate lower limit for positive distribution, a
-  # arbitrary, but can't have too large or else it;s impossible to find
-  #  a valid b
-  a = sqrt(V)/2  
-  
-  # calculate upper endpoint for positive distribution, b
-  b = abs( 0.5 * ( sqrt(3) * sqrt( 4*V - a^2 ) - a ) )
-  
-  # prior to mean shift
-  components = sample(1:2,
-                      prob=c(0.5, 0.5),
-                      size=n,
-                      replace=TRUE)
-  
-  mins = c( -b, a )
-  maxes = c( -a, b )
-  
-  samples = runif(n=n,
-                  min=mins[components],
-                  max=maxes[components])
-  
-  # mean-shift them
-  samples = samples + mu
-  
-  return( list(x = samples,
-               a = a, 
-               b = b) )
-}
-
-# # sanity check
-# mu = 0.5
-# V = 0.1^2
-# fake = runif2( n = 10000,
-#                mu = mu, 
-#                V = V)$x
-# 
-# hist(fake)
-# mean(fake)
-# var(fake); V
-
-
-# calculate quantile
-qunif2 = function(p, 
-                  mu,
-                  V) {
-  
-  # calculate lower limit for positive distribution, a
-  a = sqrt(V)/2  
-  
-  # calculate upper endpoint for positive distribution, b
-  b = abs( 0.5 * ( sqrt(3) * sqrt( 4*V - a^2 ) - a ) )
-  
-  # in this case, easy because the q must be within
-  #  the negative distribution
-  if (p < 0.5) {
-    # total length of support, not counting the gap, 
-    #  is (b-a)*2
-    # we want a point that is p% of the way through the support
-    
-    # from the lower endpoint of the negative dist, add the proportion of that interval
-    q.shift = -b + p * (b-a)*2
-  }
-  
-  else if (p == 0.5) q.shift = 0
-  
-  # now we're in the positive part of the distribution
-  else if (p > 0.5) {
-    # subtract the 0.5 that's used up by the negative dist
-    # so we want a point that is (p-0.5)% of the way into the support
-    #  of the positive part
-    #  and the positive part has support length (b-a)
-    #q.shift = a + (p - 0.5) * (b-a)
-    
-    #browser()
-    q.temp = -b + p * (b-a)*2
-    q.shift = q.temp + 2*a
-  }
-  
-  q = q.shift + mu
-  return(q)
-}
-
-# # sanity check
-# mu = 0.5
-# V = 0.1^2
-# fake = runif2( n = 10000,
-#                mu = mu,
-#                V = V)
-# 
-# hist(fake$x)
-# mean(fake$x)
-# var(fake$x); V
-# 
-# p = 0.1
-# ( q = qunif2( p = p, 
-#         mu = mu, 
-#         V = V) )
-# sum(fake$x < q) / length(fake$x); p
-# # works :) 
 
 
 I2 = function(t2, N) {
