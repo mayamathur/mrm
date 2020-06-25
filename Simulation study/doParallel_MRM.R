@@ -208,6 +208,7 @@ rep.time = system.time({
                                zb.ref = p$zb.ref,
                                calib.method = p$calib.method )
     
+    # estimated mean at level "star" of effect modifiers
     EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
     ##### Phat Difference #####
@@ -267,6 +268,7 @@ rep.time = system.time({
                       PhatHi = bootCIs[[1]][2],
                       
                       # for reference level of moderators
+                      # ~~ IMPORTANT: PHAT REF IS WRONG! BUT EVERYTHING ELSE IS FINE.
                       PhatRef = d.stats$Phat,  # ~~~~ THIS LINE IS AN ERROR! IT'S JUST PHAT(Z) AGAIN. 
                       PhatRefLo = bootCIs[[2]][1],
                       PhatRefHi = bootCIs[[2]][2],

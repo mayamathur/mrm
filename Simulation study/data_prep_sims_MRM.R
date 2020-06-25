@@ -1,7 +1,5 @@
 
-# ~~~ move stitched to correct folder and save its code archive
-
-# "**" = result reported in paper
+# audited 2020-6-19
 
 ################################## PRELIMINARIES ##################################
 
@@ -16,7 +14,7 @@ library(dplyr)
 stitched.data.dir1 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-15 all with calib.method = DL"
 
 # location for calib.method = MR results
-stitched.data.dir2 = "~/Desktop"
+stitched.data.dir2 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-19 all with calib.method = MR"
 
 # where to put the merged and prepped results
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
@@ -26,6 +24,7 @@ prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-re
 
 setwd(stitched.data.dir1)
 s1 = read.csv("stitched.csv")
+# add calib.method because we ran these sims before introducing this as a manipulated scenario parameter
 s1$calib.method = "DL"
 
 setwd(stitched.data.dir2)
@@ -35,14 +34,14 @@ s2 = read.csv("stitched.csv")
 s = rbind(s1, s2)
 
 dim(s)
-length(unique(s$scen.name))  # of 240 total
+length(unique(s$scen.name))  # expect 240
 
 # sanity check: simulation reps per level of manipulated scenario parameters
 table(s$k)
 table(s$V)
 table(s$minN)
 table(s$true.effect.dist)
-table(s$TheoryP)  # P = 0.50 still running
+table(s$TheoryP)  
 
 # minutes per doParallel
 summary(s$rep.time) / 60
@@ -69,11 +68,10 @@ s %>% group_by(calib.method) %>%
 ##### Outcome and Parameter Variables #####
 # "outcome" variables used in analysis
 analysis.vars = c( 
-
   "Phat",
   
   "TheoryP.ref",
-  "PhatRef",
+  # "PhatRef",  # NOT USING BECAUSE OF ERROR IN DOPARALLEL THAT RECORDS THIS (SEE THAT FILES)
   
   "TheoryDiff",
   "Diff",
@@ -88,11 +86,9 @@ analysis.vars = c(
   
   # to be created in mutate below:
   "PhatAbsBias",
-  "PhatRefAbsBias",
   "DiffAbsBias",
   
   "PhatBias",
-  "PhatRefBias",
   "DiffBias",
   
   "EstMeanAbsBias")
@@ -142,9 +138,7 @@ agg = s3[ !duplicated(s3$unique.scen), ]
 dim(agg)  # should be 240 * 2 methods = 480
 
 # note some scenarios always have NA for coverage:
-table(is.na(s3$CoverDiff)) ##??
-
-
+table(is.na(s3$CoverDiff)) 
 
 # **proportion of scenarios removed due to frequent BCA failure
 # e.g., because Phatdiff was almost 0, and k was so large that every boot iterate had PhatDiff = 0

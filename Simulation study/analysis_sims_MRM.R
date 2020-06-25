@@ -1,8 +1,6 @@
 
 # "**" = result reported in paper
 
-# compare CI width for the two methods
-
 ################################## PRELIMINARIES ##################################
 
 library(dplyr)
@@ -10,7 +8,6 @@ library(xtable)
 
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
 results.dir = prepped.data.dir
-#overleaf.dir = /Users/mmathur/Dropbox/Apps/Overleaf/Moderators\ in\ meta-regression/From\ R
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
 setwd(prepped.data.dir)
@@ -19,11 +16,9 @@ agg.all = read.csv("*agg_dataset_as_analyzed.csv")
 setwd(code.dir)
 source("helper_MRM.R")
 
-# which methods should we analyze?
-# to.analyze = "Two-stage"
-to.analyze = "One-stage"
-# to.analyze = "Two-stage"
-# to.analyze = c("One-stage", "Two-stage")
+# CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
+to.analyze = "Two-stage"
+#to.analyze = "One-stage"
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 
 ################################## I^2 PARAMETERIZATION OF HETEROGENEITY ##################################
@@ -31,6 +26,9 @@ agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 
 # for each possible sample size in our sims, convert all the heterogeneity 
 #  parameters to I^2
+table(agg$muN)
+table(agg$V)
+
 round( I2( t2 = c(.01, .04, .25),
            N = 100), 2 )
 
@@ -58,12 +56,9 @@ summary(mod)
 
 
 
-
 ################################## STATS AND TABLES FOR PAPER: ALL SCENARIOS ##################################
 
-
 ##### Summary Stats Reported In-line #####
-
 my_summarise(agg)
 
 
@@ -76,9 +71,9 @@ print( xtable(t1), include.rownames = FALSE )
 ################################## STATS AND TABLES FOR PAPER: K>=100, THEORYP > 0.05 ##################################
 
 ##### Summary Stats Reported In-line #####
-my_summarise( agg %>% filter( k >= 100 & Diff >.05) )
+my_summarise( agg %>% filter( k >= 100 & TheoryDiff >.05) )
 
 
 ##### Summary Table #####
-( t2 = data.frame( my_summarise( agg %>% filter( k >= 100 & Diff >.05) %>% group_by(k, V) ) ) )
+( t2 = data.frame( my_summarise( agg %>% filter( k >= 100 & TheoryDiff >.05) %>% group_by(k, V) ) ) )
 print( xtable(t2), include.rownames = FALSE )

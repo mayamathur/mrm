@@ -1,6 +1,7 @@
 
 # audited the post-NPPhat parts 2020-6-17
 
+############################# FN: MAKE SUMMARY TABLE FOR ANALYSIS #############################
 
 my_summarise = function(dat){
   round( dat %>% summarise( n.scens = n(),
