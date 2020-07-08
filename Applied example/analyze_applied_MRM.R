@@ -11,89 +11,70 @@ library(MetaUtility)
 library(boot)
 library(metafor)
 library(ICC)
+library(ggplot2)
 
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Prepped data"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Applied example"
+overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Results from R"
 
 setwd(code.dir)
 source("helper_applied_MRM.R")
 
 setwd(prepped.data.dir)
-dr = read.csv("ritchie_data_prepped.csv")
+dh = read.csv("hu_data_prepped.csv")
 
-################################## DESCRIPTIVE ################################## 
 
-# effect modifier of interest
-summary(dr$age.fu)
+################################## BASIC STATS ################################## 
 
-# just curious how early the education clock started in these studies:
-# for control-prior-IQ studies, the age of baseline IQ (max 20)
-summary(dr$Age.at.early.test)
-# for policy-change studies, age at intervention (max 19)
-summary(dr$Age.at.intervention)
-dr %>% filter( !is.na(Age.at.early.test) & Age.at.early.test>19 )
+# basic stats for reporting
+nrow(dh)  # k
+length(unique(dh$StudyID))  # 87 samples
 
-# ICC of estimates within "studies" (datasets)
-ICCbareF(dr$study, dr$yi)
-
-################################## THEIR ANALYSES ################################## 
-
-# get CI for their estimates based on reported SEs
-# page 1362: overall estimate of education effect
-3.394 + c(-1, 1) * 0.503 * qnorm(.975)
-
-# sanity check: reproduce this
-# note that they used SEM to fit the meta-analysis, so won't match exactly
+# overall meta-regression
+# d = 0.27 [0.19, 0.35]; p<0.0001
 robu( yi ~ 1,
-      data = dr, 
+      data = dh, 
       studynum = study,  
       var.eff.size = vi )
-rma.uni(yi, vi, data = dr, method = "DL")
 
-# page 1363: estimate of age decline among longitudinal studies
--0.026 + c(-1, 1) * 0.012 * qnorm(.975)
-
-# reproduce this
-robu( yi ~ age.fu,
-      data = dr %>% filter(Study.design == "Control Prior IQ"), 
-      studynum = study,  
-      var.eff.size = vi )
+# their model
+# but won't exactly reproduce their reported overall results because we've excluded
+#  4 outliers per their moderator analyses
+rma.mv(yi=Hedges..g, V = Variances, data=dh, slab=StudyID, random = ~ 1 | StudyID/DependentVariables)
 
 
 ################################## REGULAR PHAT ################################## 
 
-# threshold (IQ points/yr of education)
-q = 1 
-
-# describe threshold in terms of SMDs
-iq.sd = 15  # by definition
-
-# convert q to SMD for a given number of additional years of education
-yrs = 5
-yrs*q / iq.sd
-# or solve for the number of years equal to a certain d
-d = .2
-(d*iq.sd)/q
+# threshold (Hedges' g)
+q = .2
 
 boot.reps = 1000
 ( Phat = prop_stronger(q = q, 
                        tail = "above",
-                       dat = dr,
+                       dat = dh,
                        R = boot.reps,
                        yi.name = "yi",
                        vi.name = "vi") )
 
+# sanity check
+ens = calib_ests(dh$yi,
+                 sqrt(dh$vi))
+mean(ens)  # 0.23: lower than meta-analytic estimate, but still > q
+quantile(ens, c(.25, .5, .75))  
+mean(ens>q)  # less than 0.5 because of skewness
+plot(density(ens))
 
-################################## META-REGRESSIVE PHAT AND DIFFERENCE ################################## 
+################################## META-REGRESSIVE PHAT AND DIFFERENCE #################################
 
-# compare effect at age 50 to effect at age 10
-z = 50
-z0 = 10
-( stats = get_phat_ritchie(dat = dr,
-                           q = q,
-                           z = z,
-                           z0 = z0,
-                           return.meta = TRUE) )
+# compare (SWS, 8h sleep) to (not SWS, 2h sleep)
+z = c(1, 8)
+z0 = c(0, 2)
+stats = get_phat_hu(dat = dh,
+                      q = q,
+                      z = z,
+                      z0 = z0,
+                      return.meta = TRUE)
 
 # look at meta-regression coefficients
 stats[[1]]
@@ -101,18 +82,76 @@ stats[[1]]
 # and Phats
 stats[[2]]
 
+# calibrated estimates 
+dh$ens.shift = stats[[3]]  # shifted to Z=0
+dh$ens.unshift = stats[[4]]  # meta-regressive (unshifted)
+dh$ens.std = stats[[5]]  # standard (unshifted)
+
+# shifted threshold for level z
+q.shift = stats[[6]]
+q.shift.ref = stats[[7]]
+
 # bootstrapped inference
-boot.res = boot( data = dr, 
+boot.res = boot( data = dh, 
                  parallel = "multicore",
                  R = boot.reps, 
                  statistic = function(original, indices) {
-                   b = original[indices,]
-                   
-                   get_phat_ritchie(dat = b,
-                                   q = q,
-                                   z = z,
-                                   z0 = z0,
-                                   return.meta = FALSE)
+                    b = original[indices,]
+                    
+                    get_phat_hu(dat = b,
+                                     q = q,
+                                     z = z,
+                                     z0 = z0,
+                                     return.meta = FALSE)
                  } )
 
 ( bootCIs = get_boot_CIs(boot.res, n.ests = 3) )
+
+
+################################## PLOT MARGINAL AND CONDITIONAL CALIBRATED ESTIMATES #################################
+
+ggplot( data = dh ) +
+   
+   # shifted threshold for Z=z
+   geom_vline(xintercept = q.shift,
+              color = "red",
+              lty = 1) +
+   
+   # shifted threshold for Z=z0
+   geom_vline(xintercept = q.shift.ref,
+              color = "red",
+              lty = 2) +
+   
+   # ensemble estimates shifted to Z=0
+   geom_density( aes( x = ens.shift ),
+                 color = "orange",
+                 fill = "orange",
+                 alpha = 0.3) +
+   # geom_density( aes( x = ens.unshift ),
+   #               color = "blue" ) +
+   
+   # regular ensemble estimates
+   geom_density( aes( x = ens.std ),
+                 color = "black",
+                 fill = "black",
+                 alpha = 0.3) +
+
+   
+   theme_bw() +
+   
+   xlab("Calibrated estimate") +
+   scale_x_continuous( limits = c(-1.25, 1.5), breaks = seq(-1.25, 1.5, 0.25)) +
+   
+   ylab("Density") +
+
+   theme(axis.text.y = element_blank(),
+         axis.ticks = element_blank(),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank())
+   
+
+
+my_ggsave("calib_plot.pdf",
+          width = 8,
+          height = 1)
+
