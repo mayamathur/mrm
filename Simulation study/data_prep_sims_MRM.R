@@ -61,7 +61,7 @@ prop.table( table(s$Note2, useNA = "ifany") )
 
 # proportion failures by calib.method
 s %>% group_by(calib.method) %>%
-  summarise( mean( !is.na(s$Note2) ) )
+  summarise( mean( !is.na(Note2) ) )
 
 
 

@@ -32,11 +32,23 @@ options(scipen=999)
 
 
 ####### @TEMP ONLY: TRY TO DIAGNOSE BIAS AND COVERAGE
-
+# bm
 # In existing sims: Is Phat always biased upward toward 0.50? Could the granularity of the CDF be a problem (in the tails or with small k); and might this even cause empirical proportion to disagree with TheoryP? When Phat is biased, does the bootstrap mean reflect this? 
 
 # data from individual simulation iterates
-t = s %>% group_by(scen.name)
+# look for a single scenario with bad bias
+t = s %>% group_by(scen.name) %>%
+  summarise( PhatRelBias = mean(PhatRelBias),
+             PhatAbsBias = mean(PhatAbsBias),
+             PhatBias = mean(PhatBias),
+             TheoryP = mean(TheoryP),
+             Phat = mean(Phat) ) %>%
+  arrange( desc(PhatRelBias) )
+View(t)
+# scenario 165 is interesting because TheoryP = 0.20 (not extreme) but average Phat is 0.31
+
+View( s[ s$scen.name == "165" & !duplicated(s$scen.name), ] )
+
 
 
 ################################## I^2 PARAMETERIZATION OF HETEROGENEITY ##################################
@@ -73,8 +85,8 @@ mod = lm( PhatAbsBias ~ k + minN + true.effect.dist + V + TheoryP,
 summary(mod)
 # things that WORSEN abs bias: larger TheoryP
 
-# for bias
-mod = lm( PhatBias ~ k + minN + true.effect.dist + V + TheoryP,
+# for relative bias
+mod = lm( PhatRelBias ~ k + minN + true.effect.dist + V + TheoryP,
           data = agg )
 summary(mod)
 # things that make bias positive: larger V, larger TheoryP, larger minN

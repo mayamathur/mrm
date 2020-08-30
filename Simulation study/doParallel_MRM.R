@@ -1,6 +1,12 @@
 
 # audited 2020-6-17
 
+
+# to update
+# save empirical phat
+# save bootstrap mean and median
+
+
 # because Sherlock 2.0 restores previous workspace
 rm( list = ls() )
 
@@ -112,28 +118,61 @@ if ( run.local == TRUE ) {
   setwd(code.dir)
   source("helper_MRM.R")
   
-  # just one scenario
-  ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
-                                    calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
-                                    k = c(50),
+  # # just one scenario
+  # ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
+  #                                   calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
+  #                                   k = c(50),
+  #                                   b0 = 0, # intercept
+  #                                   bc = 0.5, # effect of continuous moderator
+  #                                   bb = 1, # effect of binary moderator
+  #                                   
+  #                                   zc.star = 0.5,  # level of moderator to consider
+  #                                   zb.star = 1,
+  #                                   
+  #                                   zc.ref = 2,  # comparison levels of moderator to consider
+  #                                   zb.ref = 0,
+  #                                   
+  #                                   V = c( 0.5^2 ), # residual variance
+  #                                   muN = NA,  # just a placeholder; to be filled in later
+  #                                   minN = c(100),
+  #                                   sd.w = c(1),
+  #                                   tail = "above",
+  #                                   true.effect.dist = c("normal"), 
+  #                                   TheoryP = c(0.2),
+  #                                   start.at = 1 ) )
+  
+  
+  # full set of scenarios
+  ( scen.params = make_scen_params( method = "boot.whole",
+                                    calib.method = "MR",
+                                    
+                                    k = rev(c(10, 20, 50, 100, 150)),
                                     b0 = 0, # intercept
                                     bc = 0.5, # effect of continuous moderator
                                     bb = 1, # effect of binary moderator
                                     
-                                    zc.star = 0.5,  # level of moderator to consider
+                                    zc.star = 0.5,  # "active" level of moderator to consider
                                     zb.star = 1,
                                     
-                                    zc.ref = 2,  # comparison levels of moderator to consider
+                                    zc.ref = 2,  # reference levels of moderator to consider
                                     zb.ref = 0,
                                     
-                                    V = c( 0.5^2 ), # residual variance
+                                    # Previous choices:
+                                    # zc.star = 0.5,  # "active" level of moderator to consider
+                                    # zb.star = 1,
+                                    # 
+                                    # zc.ref = 2,  # reference levels of moderator to consider
+                                    # zb.ref = 0,
+                                    
+                                    V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
                                     muN = NA,  # just a placeholder; to be filled in later
-                                    minN = c(100),
+                                    minN = c(50, 800),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("normal"), 
-                                    TheoryP = c(0.2),
+                                    true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
+                                    TheoryP = c(0.05, 0.1, 0.2, 0.5),
                                     start.at = 1 ) )
+  
   # just to see it
   data.frame(scen.params)
   
@@ -171,7 +210,8 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  scen = 1
+  # an especially upward-biased scenario
+  scen = 165
 }
 
 
@@ -234,12 +274,12 @@ rep.time = system.time({
                                             zc.ref = p$zc.ref,
                                             zb.ref = p$zb.ref)
                            
-                           # only return the two stats of interest
+                           # only return the 3 stats of interest
                            c( as.numeric(b.stats["Phat"]),
                               as.numeric(b.stats["Phat.ref"]),
                               as.numeric(b.stats["Phat.diff"]) )
                          } )
-                        
+        boot.res
         # for debugging
         #head( boot.res$t )
         
@@ -261,6 +301,12 @@ rep.time = system.time({
  
                       TrueVar = p$V,
                       EstVar = d.stats$t2,
+                      
+                      # sanity check:
+                      # empirical proportions of POPULATION effects
+                      # bm
+                      EmpP = mean(d$mu > p$q),
+                      EmpDiff = mean()
                       
                       # for "star" level of moderators
                       Phat = d.stats$Phat,
