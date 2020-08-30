@@ -1,6 +1,8 @@
 
 # "**" = result reported in paper
 
+
+
 ################################## PRELIMINARIES ##################################
 
 library(dplyr)
@@ -11,7 +13,10 @@ results.dir = prepped.data.dir
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
 setwd(prepped.data.dir)
+# data aggregated by scenario
 agg.all = read.csv("*agg_dataset_as_analyzed.csv")
+# data for each simulation iterate
+s = read.csv("s3_dataset_MRM.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
@@ -20,6 +25,19 @@ source("helper_MRM.R")
 to.analyze = "Two-stage"
 #to.analyze = "One-stage"
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
+s = s %>% filter( calib.method.pretty %in% to.analyze )
+
+options(scipen=999)
+
+
+
+####### @TEMP ONLY: TRY TO DIAGNOSE BIAS AND COVERAGE
+
+# In existing sims: Is Phat always biased upward toward 0.50? Could the granularity of the CDF be a problem (in the tails or with small k); and might this even cause empirical proportion to disagree with TheoryP? When Phat is biased, does the bootstrap mean reflect this? 
+
+# data from individual simulation iterates
+t = s %>% group_by(scen.name)
+
 
 ################################## I^2 PARAMETERIZATION OF HETEROGENEITY ##################################
 
@@ -49,11 +67,17 @@ summary(mod)
 # **things that IMPROVE coverage: larger k, smaller V, larger TheoryP, smaller TheoryDiff
 # **things that don't matter much: minN, true effect distribution
 
-# and for bias
+# for absolute bias
 mod = lm( PhatAbsBias ~ k + minN + true.effect.dist + V + TheoryP,
           data = agg )
 summary(mod)
+# things that WORSEN abs bias: larger TheoryP
 
+# for bias
+mod = lm( PhatBias ~ k + minN + true.effect.dist + V + TheoryP,
+          data = agg )
+summary(mod)
+# things that make bias positive: larger V, larger TheoryP, larger minN
 
 
 ################################## STATS AND TABLES FOR PAPER: ALL SCENARIOS ##################################

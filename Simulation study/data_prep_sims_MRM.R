@@ -112,7 +112,13 @@ s3 = s %>%
           PhatAbsBias = abs(Phat - TheoryP),
           DiffAbsBias = abs(Diff - TheoryDiff),
           
-          EstMeanAbsBias = abs(EstMean - TrueMean)) %>%
+          PhatRelBias = Phat/TheoryP,
+          DiffBias = Diff/TheoryDiff,
+          
+          # diagnostics
+          EstMeanAbsBias = abs(EstMean - TrueMean),
+          EstVarBias = abs(EstVar - TrueVar)
+          ) %>%
   # scenario-level stats:
   group_by_at(param.vars) %>%
   mutate( sim.reps = n(),
