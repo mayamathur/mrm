@@ -4,6 +4,7 @@
 ################################## PRELIMINARIES ##################################
 
 library(dplyr)
+library(testthat)
 
 # we first ran all results with calib.method = "DL" (two-stage method), although we didn't
 #  yet have that as a parameter
@@ -17,7 +18,7 @@ stitched.data.dir1 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-
 stitched.data.dir2 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-19 all with calib.method = MR"
 
 # where to put the merged and prepped results
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
 
 
 ################################## DATA PREP ##################################
@@ -63,7 +64,8 @@ prop.table( table(s$Note2, useNA = "ifany") )
 s %>% group_by(calib.method) %>%
   summarise( mean( !is.na(Note2) ) )
 
-
+# @temp
+s$Phat[ s$scen.name == "165" ]
 
 ##### Outcome and Parameter Variables #####
 # "outcome" variables used in analysis
@@ -91,7 +93,16 @@ analysis.vars = c(
   "PhatBias",
   "DiffBias",
   
-  "EstMeanAbsBias")
+  "PhatRelBias",
+  "DiffRelBias",
+  
+  "EstMeanRelBias",
+  "EstMeanAbsBias",
+  "EstVarAbsBias",
+  "EstVarRelBias")
+
+
+
 
 param.vars = c("scen.name",
                "calib.method",
@@ -104,8 +115,10 @@ param.vars = c("scen.name",
 
 ################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
+# IMPORTANT NOTE: if you add variables here, need to add them to analysis.vars
+#  vector above so that they are grouped in the dplyr work below
 s3 = s %>%
-  # iterate-level state:
+  # iterate-level states:
   mutate( PhatBias = (Phat - TheoryP),
           DiffBias = (Diff - TheoryDiff),
           
@@ -113,12 +126,37 @@ s3 = s %>%
           DiffAbsBias = abs(Diff - TheoryDiff),
           
           PhatRelBias = Phat/TheoryP,
-          DiffBias = Diff/TheoryDiff,
+          DiffRelBias = Diff/TheoryDiff,
           
           # diagnostics
+          EstMeanRelBias = EstMean / TrueMean,
           EstMeanAbsBias = abs(EstMean - TrueMean),
-          EstVarBias = abs(EstVar - TrueVar)
-          ) %>%
+          
+          EstVarRelBias = EstVar / TrueVar,
+          EstVarAbsBias = abs(EstVar - TrueVar) )
+
+# recode calib.method
+s3$calib.method.pretty = NA
+s3$calib.method.pretty[ s3$calib.method == "DL" ] = "Two-stage"
+s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
+
+# unique scenario variable
+s3$unique.scen = paste(s3$scen.name, s3$calib.method)
+
+##### Save Dataset ####
+# saving now BEFORE we overwrite Phat, etc., with the versions that are aggregated by scenario
+setwd(prepped.data.dir)
+write.csv(s3, "s3_dataset_MRM.csv")
+
+# sanity check for one scenario
+# mean = 1.18 and varies across iterates, as expected
+summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "MR"])
+table( s3$scen.name == "134" & s3$calib.method == "MR" )
+
+
+##### Overwrite Analysis Variables As Their Within-Scenario Means #####
+
+s4 = s3 %>%
   # scenario-level stats:
   group_by_at(param.vars) %>%
   mutate( sim.reps = n(),
@@ -127,24 +165,34 @@ s3 = s %>%
   group_by_at(param.vars) %>%
   mutate_at( analysis.vars,
              function(x) mean(x, na.rm = TRUE) )
-# # sanity check
-# # SD should always be 0 because we overwrote the variables after grouping on scen.name
-# data.frame( s3 %>% group_by(scen.name) %>%
-#   summarise( sd(CoverPhat) ) )
 
-# recode calib.method
-s3$calib.method.pretty = NA
-s3$calib.method.pretty[ s3$calib.method == "DL" ] = "Two-stage"
-s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
+
+# sanity check: SDs of all analysis variables should be 0 within unique scenarios
+t = data.frame( s4 %>% group_by(unique.scen) %>%
+              summarise_at( analysis.vars, sd ) )
+expect_equal( FALSE, 
+              any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA) ) )
+
+
+# sanity check for one scenario
+# still 1.18 but no longer varies across scenarios
+table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "MR"])
+
 
 # make aggregated data by keeping only first row for each 
 #  combination of scenario name and calib.method
-s3$unique.scen = paste(s3$scen.name, s3$calib.method)
-agg = s3[ !duplicated(s3$unique.scen), ]
+s4$unique.scen = paste(s4$scen.name, s4$calib.method)
+agg = s4[ !duplicated(s4$unique.scen), ]
 dim(agg)  # should be 240 * 2 methods = 480
 
+# @ temp
+# THE SCENARIO DISAPPEARS??
+# BM: FIGURE OUT WHY THE SCENARIO I WANT HAS DISAPPEARED UPON AGGREGATION
+table( s4$unique.scen[ s4$scen.name == "134" & s4$calib.method == "MR" ] )
+agg$PhatRelBias[ agg$unique.scen == "134 MR" ]
+
 # note some scenarios always have NA for coverage:
-table(is.na(s3$CoverDiff)) 
+table(is.na(s4$CoverDiff)) 
 
 # **proportion of scenarios removed due to frequent BCA failure
 # e.g., because Phatdiff was almost 0, and k was so large that every boot iterate had PhatDiff = 0
@@ -152,7 +200,6 @@ mean(agg$bca.success < 0.05)
 
 ##### Save Intermediate Datasets #####
 setwd(prepped.data.dir)
-write.csv(s3, "s3_dataset_MRM.csv")
 write.csv(agg, "agg_dataset_with_bca_failures_MRM.csv")
 
 

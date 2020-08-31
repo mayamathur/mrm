@@ -8,7 +8,9 @@
 library(dplyr)
 library(xtable)
 
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in paper"
+options(scipen=999)
+
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
 results.dir = prepped.data.dir
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
@@ -22,12 +24,10 @@ setwd(code.dir)
 source("helper_MRM.R")
 
 # CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
-to.analyze = "Two-stage"
-#to.analyze = "One-stage"
+#to.analyze = "Two-stage"
+to.analyze = "One-stage"
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 s = s %>% filter( calib.method.pretty %in% to.analyze )
-
-options(scipen=999)
 
 
 
@@ -35,21 +35,71 @@ options(scipen=999)
 # bm
 # In existing sims: Is Phat always biased upward toward 0.50? Could the granularity of the CDF be a problem (in the tails or with small k); and might this even cause empirical proportion to disagree with TheoryP? When Phat is biased, does the bootstrap mean reflect this? 
 
+# compare to old versions
+agg.old = read.csv("*agg_dataset_as_analyzed.csv")
+agg.old$Phat[ agg.old$unique.scen == "134 MR" ]  # agrees
+
+s$Phat[ s$unique.scen == "134 MR" ]
+mean(s$Phat[ s$unique.scen == "134 MR" ])
+agg$Phat[ agg$unique.scen == "134 MR" ]
+
+# only look at scenarios that remained in agg because they had sufficient
+#  successful bootstrap iterates
+scens = unique(agg$scen.name)
+
 # data from individual simulation iterates
 # look for a single scenario with bad bias
-t = s %>% group_by(scen.name) %>%
+t = s %>% filter( scen.name %in% scens ) %>%
+  group_by(scen.name) %>%
   summarise( PhatRelBias = mean(PhatRelBias),
+             DiffRelBias = mean(DiffRelBias),
              PhatAbsBias = mean(PhatAbsBias),
              PhatBias = mean(PhatBias),
+             
              TheoryP = mean(TheoryP),
-             Phat = mean(Phat) ) %>%
+             Phat = mean(Phat),
+             
+             TheoryDiff = mean(TheoryDiff),
+             Diff = mean(Diff)
+  ) %>%
   arrange( desc(PhatRelBias) )
 View(t)
-# scenario 165 is interesting because TheoryP = 0.20 (not extreme) but average Phat is 0.31
+# scenario 164 is interesting because TheoryP = 0.20 (not extreme) but average Phat is 0.31
+# and TheoryDiff is biased upward as well
+# and k=20 for this one
 
-View( s[ s$scen.name == "165" & !duplicated(s$scen.name), ] )
+# maybe also look for a scenario with larger k, like 50-100, but bad PhatDiff
 
+temp = s[ s$unique.scen == "164 MR", ]
+View(temp)
 
+# Phat
+table(temp$TheoryP)
+mean(temp$Phat)
+
+# estimated mean is almost exactly right
+table(temp$TrueMean)
+mean(temp$EstMean)
+mean(temp$EstMean) / temp$TrueMean[1]  # relative bias: 1.00
+
+# estimated heterogeneity is a little high but fairly close
+table(temp$TrueVar)
+mean(temp$EstVar)
+mean(temp$EstVar)/temp$TrueVar[1]  # relative bias in heterogeneity estimation  = 1.24***
+
+##### Compare Relative Bias of Ours to Standard Estimands #####
+
+library(ggplot2)
+ggplot( data = agg, aes(x = EstVarRelBias, y = PhatRelBias) ) +
+  geom_point()
+
+# **important: point out that heterogeneity estimation doesn't perform much better than Phat and PhatDiff for bias
+summary(agg$PhatRelBias)
+summary(agg$DiffRelBias)
+summary(agg$EstMeanRelBias)
+summary(agg$EstVarRelBias)
+
+####### @END OF TEMP
 
 ################################## I^2 PARAMETERIZATION OF HETEROGENEITY ##################################
 
