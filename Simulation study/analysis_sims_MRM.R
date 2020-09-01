@@ -39,6 +39,7 @@ s = s %>% filter( calib.method.pretty %in% to.analyze )
 agg.old = read.csv("*agg_dataset_as_analyzed.csv")
 agg.old$Phat[ agg.old$unique.scen == "134 MR" ]  # agrees
 
+# sanity check for one scenario
 s$Phat[ s$unique.scen == "134 MR" ]
 mean(s$Phat[ s$unique.scen == "134 MR" ])
 agg$Phat[ agg$unique.scen == "134 MR" ]
@@ -47,6 +48,7 @@ agg$Phat[ agg$unique.scen == "134 MR" ]
 #  successful bootstrap iterates
 scens = unique(agg$scen.name)
 
+##### Look at Evil Scenario  164 #####
 # data from individual simulation iterates
 # look for a single scenario with bad bias
 t = s %>% filter( scen.name %in% scens ) %>%
@@ -63,7 +65,7 @@ t = s %>% filter( scen.name %in% scens ) %>%
              Diff = mean(Diff)
   ) %>%
   arrange( desc(PhatRelBias) )
-View(t)
+# View(t)
 # scenario 164 is interesting because TheoryP = 0.20 (not extreme) but average Phat is 0.31
 # and TheoryDiff is biased upward as well
 # and k=20 for this one
@@ -76,6 +78,7 @@ View(temp)
 # Phat
 table(temp$TheoryP)
 mean(temp$Phat)
+mean(temp$Phat)/temp$TheoryP[1]
 
 # estimated mean is almost exactly right
 table(temp$TrueMean)

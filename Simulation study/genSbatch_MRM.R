@@ -7,6 +7,10 @@ path = "/home/groups/manishad/MRM"
 setwd(path)
 source("helper_MRM.R")
 
+library(cli, lib.loc = "/home/groups/manishad/Rpackages/")
+library(fansi, lib.loc = "/home/groups/manishad/Rpackages/")
+library(utf8, lib.loc = "/home/groups/manishad/Rpackages/")
+library(rlang, lib.loc = "/home/groups/manishad/Rpackages/")
 library(crayon, lib.loc = "/home/groups/manishad/Rpackages/")
 library(dplyr, lib.loc = "/home/groups/manishad/Rpackages/")
 library(foreach, lib.loc = "/home/groups/manishad/Rpackages/")
@@ -18,28 +22,56 @@ library(data.table, lib.loc = "/home/groups/manishad/Rpackages/")
 library(purrr, lib.loc = "/home/groups/manishad/Rpackages/")
 library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
 
+# in case packages need to be installed
+# install.packages("cli", lib = "/home/groups/manishad/Rpackages/")
+
+
+# # just one scenario
+# # 164 MR  was especially upward-biased for Phat and Diff
+# ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
+#                                   calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
+#                                   k = c(20),
+#                                   b0 = 0, # intercept
+#                                   bc = 0.5, # effect of continuous moderator
+#                                   bb = 1, # effect of binary moderator
+# 
+#                                   zc.star = 0.5,  # level of moderator to consider
+#                                   zb.star = 1,
+# 
+#                                   zc.ref = 2,  # comparison levels of moderator to consider
+#                                   zb.ref = 0,
+# 
+#                                   V = c( .01 ), # residual variance
+#                                   muN = NA,  # just a placeholder; to be filled in later
+#                                   minN = c(50),
+#                                   sd.w = c(1),
+#                                   tail = "above",
+#                                   true.effect.dist = c("expo"),
+#                                   TheoryP = c(0.2),
+#                                   start.at = 1 ) )
+
 # full set of scenarios
 ( scen.params = make_scen_params( method = "boot.whole",
                                   calib.method = "MR",
-                                  
+
                                   k = rev(c(10, 20, 50, 100, 150)),
                                   b0 = 0, # intercept
                                   bc = 0.5, # effect of continuous moderator
                                   bb = 1, # effect of binary moderator
-                                  
+
                                   zc.star = 0.5,  # "active" level of moderator to consider
                                   zb.star = 1,
-                                  
+
                                   zc.ref = 2,  # reference levels of moderator to consider
                                   zb.ref = 0,
-                                  
+
                                   # Previous choices:
                                   # zc.star = 0.5,  # "active" level of moderator to consider
                                   # zb.star = 1,
-                                  # 
+                                  #
                                   # zc.ref = 2,  # reference levels of moderator to consider
                                   # zb.ref = 0,
-                                  
+
                                   V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
                                   muN = NA,  # just a placeholder; to be filled in later
                                   minN = c(50, 800),
@@ -54,7 +86,6 @@ summary(scen.params$TheoryP)  # this won't change
 summary(scen.params$TheoryP.ref)
 summary(scen.params$TheoryDiff)
 scen.params$q
-# ~~~ bm: probably need to fix TheoryDiff and then have it choose bc appropriately?
 
 # #### DEBUGGING
 # true.effect.dist = "normal"
@@ -100,13 +131,13 @@ scen.params$q
 #                                   b0 = 0, # intercept
 #                                   bc = 0.5, # effect of continuous moderator
 #                                   bb = 1, # effect of binary moderator
-#                                   
+# 
 #                                   zc.star = 0.5,  # level of moderator to consider
 #                                   zb.star = 1,
-#                                   
+# 
 #                                   zc.ref = 2,  # comparison levels of moderator to consider
 #                                   zb.ref = 0,
-#                                   
+# 
 #                                   V = c( 0.5^2 ), # residual variance
 #                                   muN = NA,  # just a placeholder; to be filled in later
 #                                   minN = c(100),
@@ -131,7 +162,7 @@ write.csv( scen.params, "scen_params.csv", row.names = FALSE )
 source("helper_MRM.R")
 
 # number of sbatches to generate (i.e., iterations within each scenario)
-n.reps.per.scen = 600  # ~~ set to 10 to generate only 1 file
+n.reps.per.scen = 600  # if you want to generate only 1 file, set this to 10
 n.reps.in.doParallel = 100
 ( n.files = ( n.reps.per.scen / n.reps.in.doParallel ) * n.scen )
 
@@ -172,7 +203,7 @@ n.files
 # max hourly submissions seems to be 300, which is 12 seconds/job
 path = "/home/groups/manishad/MRM"
 setwd( paste(path, "/sbatch_files", sep="") )
-for (i in 1:1440) {
+for (i in 11:1440) {
   #system( paste("sbatch -p owners /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
   system( paste("sbatch -p qsu,owners,normal /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
   #Sys.sleep(2)  # delay in seconds

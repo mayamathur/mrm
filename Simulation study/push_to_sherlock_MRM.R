@@ -12,7 +12,6 @@ squeue -u mmathur -t PENDING
 
 
 # see the datasets
-cd /home/groups/manishad/MRM/results/long
 vim /home/groups/manishad/MRM/sim_results/long/long_results_job_1_.csv
 ls -l . | egrep -c '^-'
 
@@ -28,7 +27,7 @@ nano /home/groups/manishad/MRM/sim_results/overall_stitched/sti*
   
   
   
-  ####################### CODE -> SHERLOCK ####################### 
+####################### CODE -> SHERLOCK ####################### 
 
 # push all the individual files
 scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Code\ \(git\)/Simulation\ study/* mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM

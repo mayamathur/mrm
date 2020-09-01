@@ -3,8 +3,9 @@
 
 
 # to update
-# save empirical phat
-# save bootstrap mean and median
+# can't rely on bootstrap notes for bca.success anymore because 
+#   now that only happens when the resampling fails, not the CIs
+#   should use NAs in each respective CI instead
 
 
 # because Sherlock 2.0 restores previous workspace
@@ -184,8 +185,8 @@ if ( run.local == TRUE ) {
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 5
-  boot.reps = 500  # ~~ temp only
+  sim.reps = 250
+  boot.reps = 2000  # ~~ temp only
   
   
   library(foreach)
@@ -220,6 +221,8 @@ if ( run.local == TRUE ) {
 
 rep.time = system.time({
   rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
+    # for debugging:
+    #for ( i in 1:sim.reps ) {
     
     # extract simulation params for this scenario (row)
     # exclude the column with the scenario name itself (col) 
@@ -230,6 +233,7 @@ rep.time = system.time({
     TrueMean = p$b0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
     ##### Simulate Dataset #####
+    # for clustering, use sim_data2
     d = sim_data( k = p$k, 
                   b0 = p$b0, # intercept
                   bc = p$bc, # effect of continuous moderator
@@ -267,6 +271,7 @@ rep.time = system.time({
                          parallel = "multicore",
                          R = boot.reps, 
                          statistic = function(original, indices) {
+                           # @ for clustering, need to use cluster_bt here
                            b = original[indices,]
                            
                            b.stats = prop_stronger_mr(dat = b,
@@ -284,15 +289,51 @@ rep.time = system.time({
         # for debugging
         #head( boot.res$t )
         
-        bootCIs = get_boot_CIs(boot.res, "bca", n.ests = 3)
+        # bias
+        bt.means = as.numeric( colMeans(boot.res$t) - d.stats[1:3] )
+        # @check me baby one more time
+        bt.sds = apply( boot.res$t, 2, sd )
+        
+        # get CIs for each estimand individually in case some work and others don't
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 1)
+          # put in nice vector format
+          PhatBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          PhatBootCIs <<- c(NA, NA)
+        } )
+        
+
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 2)
+          PhatRefBootCIs = c( CI[[4]][4], CI[[4]][5] )
+          PhatRefBootSD = sd( boot.res$t[,2] )
+        }, error = function(err){
+          PhatRefBootCIs <<- c(NA, NA)
+        } )
+        
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 2)
+          DiffBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          DiffBootCIs <<- c(NA, NA)
+        } )
+        
+        # bm
+      # this part happens only if bootstrapping fails completely
+        # not just CIs
       }, error = function(err){
         # one list item for each stat of interest (3),
         #  and one sub-entry for lower/upper CI limit
-        n.stats = 3
-        bootCIs <<- list( c(NA, NA), c(NA, NA), c(NA, NA) )
+        PhatBootCIs <<- c(NA, NA)
+        PhatRefBootCIs <<- c(NA, NA)
+        DiffBootCIs <<- c(NA, NA)
+        bt.means <<- c(NA, NA, NA)
+        bt.sds <<- c(NA, NA, NA)
         #boot.median <<- NA
-        Note <<- paste("BCa failed: ", err$message, sep="")
-      } )
+        Note <<- paste("Resampling failed completely: ", err$message, sep="")
+        #browser()
+      } )  # end of the big tryCatch loop for the whole boot() call
       
       
       # write results
@@ -307,31 +348,36 @@ rep.time = system.time({
                       
                       # for "star" level of moderators
                       Phat = d.stats$Phat,
-                      PhatLo = bootCIs[[1]][1],
-                      PhatHi = bootCIs[[1]][2],
+                      PhatLo = PhatBootCIs[1],
+                      PhatHi = PhatBootCIs[2],
+                      PhatBtMn = bt.means[1],
+                      PhatBtSD = bt.sds[1],
                       
                       # for reference level of moderators
-                      # ~~ IMPORTANT: PHAT REF IS WRONG! BUT EVERYTHING ELSE IS FINE.
-                      PhatRef = d.stats$Phat,  # ~~~~ THIS LINE IS AN ERROR! IT'S JUST PHAT(Z) AGAIN. 
-                      PhatRefLo = bootCIs[[2]][1],
-                      PhatRefHi = bootCIs[[2]][2],
+                      PhatRef = d.stats$Phat.ref, 
+                      PhatRefLo = PhatRefBootCIs[1],
+                      PhatRefHi = PhatRefBootCIs[2],
+                      PhatRefBtMn = bt.means[2],
+                      PhatRefBtSD = bt.sds[2],
  
                       # for the difference
                       Diff = PhatDiff,
-                      DiffLo = bootCIs[[3]][1],
-                      DiffHi = bootCIs[[3]][2],
+                      DiffLo = DiffBootCIs[1],
+                      DiffHi = DiffBootCIs[2],
+                      DiffBtMn = bt.means[3],
+                      DiffBtSD = bt.sds[3],
                       
                       # method of calculating CI: exponentiate logit or not?
                       Method = p$method,
                       
                       # CI performance
-                      CoverPhat = covers(p$TheoryP, bootCIs[[1]][1], bootCIs[[1]][2]),
-                      CoverPhatRef = covers(p$TheoryP.ref, bootCIs[[2]][1], bootCIs[[2]][2]),
-                      CoverDiff = covers(p$TheoryDiff, bootCIs[[3]][1], bootCIs[[3]][2]),
+                      CoverPhat = covers(p$TheoryP, PhatBootCIs[1], PhatBootCIs[2]),
+                      CoverPhatRef = covers(p$TheoryP.ref, PhatRefBootCIs[1], PhatRefBootCIs[2]),
+                      CoverDiff = covers(p$TheoryDiff, DiffBootCIs[1], DiffBootCIs[2]),
                       
-                      PhatCIWidth = bootCIs[[1]][2] - bootCIs[[1]][1],
-                      PhatRefCIWidth = bootCIs[[2]][2] - bootCIs[[2]][1],
-                      DiffCIWidth = bootCIs[[3]][2] - bootCIs[[3]][1],
+                      PhatCIWidth = PhatBootCIs[2] - PhatBootCIs[1],
+                      PhatRefCIWidth = PhatRefBootCIs[2] - PhatRefBootCIs[1],
+                      DiffCIWidth = DiffBootCIs[2] - DiffBootCIs[1],
                       
                       Note = Note)
  
@@ -353,10 +399,14 @@ rep.time = system.time({
 
 head(rs)
 
+# bm: running this one bad scenario while saving additional info
+#  mostly interested in the boot means here
 
 # time in seconds
 rep.time
 rs$rep.time = rep.time
+
+rs$PhatBtMn
 
 # if ( run.local == TRUE ) {
 #   # ~~ COMMENT OUT BELOW PART TO RUN ON CLUSTER

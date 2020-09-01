@@ -20,18 +20,37 @@ my_summarise = function(dat){
          2 )
 }
 
-############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMfATES #############################
+############################# FNS FOR BOOTSTRAPPING #############################
 
-# list with first entry for b and second entry for t2
-# n.ests: how many parameters were estimated?
-get_boot_CIs = function(boot.res, type, n.ests) {
-  bootCIs = lapply( 1:n.ests, function(x) boot.ci(boot.res, type = type, index = x) )
+# # list with first entry for b and second entry for t2
+# # n.ests: how many parameters were estimated?
+# # NOT IN USE ANYMORE
+# get_boot_CIs = function(boot.res, type, n.ests) {
+#   bootCIs = lapply( 1:n.ests, function(x) boot.ci(boot.res, type = type, index = x) )
+#   
+#   # list with first entry for b and second entry for t2
+#   # the middle index "4" on the bootCIs accesses the stats vector
+#   # the final index chooses the CI lower (4) or upper (5) bound
+#   bootCIs = lapply( 1:n.ests, function(x) c( bootCIs[[x]][[4]][4],
+#                                              bootCIs[[x]][[4]][5] ) )
+# }
+
+
+# bm3
+# draw cluster bootstrap sample
+# assumes cluster variable is named "cluster"
+# this is Davison & Hinkley's recommendation 
+#  see section 3.8 in "Further Topics" chapter
+cluster_bt = function(.dat, .clustervar){
   
-  # list with first entry for b and second entry for t2
-  # the middle index "4" on the bootCIs accesses the stats vector
-  # the final index chooses the CI lower (4) or upper (5) bound
-  bootCIs = lapply( 1:n.ests, function(x) c( bootCIs[[x]][[4]][4],
-                                             bootCIs[[x]][[4]][5] ) )
+  .dat$cluster = .dat[[.clustervar]]
+  
+  # resample clusters, leaving observations intact
+  #https://stats.stackexchange.com/questions/46821/bootstrapping-hierarchical-multilevel-data-resampling-clusters
+  # see answer by dash2
+  cluster.ids = data.frame(cluster = sample(.dat$cluster, replace = TRUE))
+  datb = .dat %>% inner_join(cluster.ids, by = 'cluster')
+  return(datb)
 }
 
 
@@ -93,17 +112,17 @@ prop_stronger_mr = function(dat,
   
   ##### Reference Level and Difference #####
   if ( !is.na(zc.ref) & !is.na(zb.ref) ) {
-
+    
     q.shift.ref = p$q - (bhatc * zc.ref) - (bhatb * zb.ref)
-
+    
     Phat.ref = mean(ens.shift > q.shift.ref)
     Phat.diff = Phat - Phat.ref
-      
+    
   } else {
     Phat.ref = NA
     Phat.diff = NA
   }
-
+  
   if ( simple.output == TRUE ) return(Phat)
   if ( simple.output == FALSE ) {
     return( data.frame( Phat = Phat,
@@ -207,7 +226,84 @@ sim_one_study = function( b0, # intercept
   return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
 }
 
+# with clustering
+sim_one_study2 = function(b0, # intercept
+                          bc, # effect of continuous moderator
+                          bb, # effect of binary moderator
+                          V, 
+                          Vzeta, # used to calcuate within-cluster variance
+                          zeta1,  # scalar cluster random intercept for this study's cluster
+                          muN,
+                          minN,
+                          sd.w,
+                          true.effect.dist = "normal"
+) {
+  
+  # # @test for m=1 case
+  # # TEST ONLY
+  # b0 = 0.5 # intercept
+  # bc = 0.5 # effect of continuous moderator
+  # bb = 1 # effect of binary moderator
+  # V = .5
+  # Vzeta = 0.25
+  # zeta1 = -0.2
+  # muN = 100
+  # minN = 50
+  # sd.w = 1
+  # true.effect.dist = "normal"
+  
+  ##### Simulate Sample Size and Fixed Design Matrix for This Study #####
+  # simulate total N for this study
+  N = round( runif( n = 1, min = minN, max = minN + 2*( muN - minN ) ) ) # draw from uniform centered on muN
+  
+  # simulate study-level moderators
+  Zc = rnorm( n = 1, mean = 0, sd = 1)
+  Zb = rbinom( n = 1, size = 1, prob = 0.5)
+  
+  # mean (i.e., linear predictor) conditional on the moderators and cluster membership
+  mu = b0 + zeta1 + bc*Zc + bb*Zb
+  # all that follows is that same as in NPPhat, except incorporating clustering as in SAPB
+  
+  ##### Draw a Single Population True Effect for This Study #####
+  if ( true.effect.dist == "normal" ) {
+    Mi = rnorm( n=1, mean=mu, sd=sqrt(V - Vzeta) )
+  }
+  if ( true.effect.dist == "expo" ) {
+    # within-cluster variance = total - between
+    Vwithin = V - Vzeta
+    # set the rate so the heterogeneity is correct
+    Mi = rexp( n = 1, rate = sqrt(1/Vwithin) )
+    # now the mean is sqrt(V) rather than mu
+    # shift to have the correct mean (in expectation)
+    Mi = Mi + (mu - sqrt(Vwithin))
+  }
+  
+  ###### Simulate Data For Individual Subjects ######
+  # group assignments
+  X = c( rep( 0, N/2 ), rep( 1, N/2 ) )
+  
+  # simulate continuous outcomes
+  # 2-group study of raw mean difference with means 0 and Mi in each group
+  # and same SD
+  Y = c( rnorm( n = N/2, mean = 0, sd = sd.w ),
+         rnorm( n = N/2, mean = Mi, sd = sd.w ) )
+  
+  # calculate ES for this study using metafor (see Viechtbauer "Conducting...", pg 10)
+  require(metafor)
+  ES = escalc( measure="SMD",   
+               n1i = N/2, 
+               n2i = N/2,
+               m1i = mean( Y[X==1] ),
+               m2i = mean( Y[X==0] ),
+               sd1i = sd( Y[X==1] ),
+               sd2i = sd( Y[X==0] ) ) 
+  yi = ES$yi
+  vyi = ES$vi
+  
+  return( data.frame( Mi, mu, zeta1, Zc, Zb, yi, vyi ) )
+}
 
+# calculate I^2 from t^2 and N
 I2 = function(t2, N) {
   t2 / (t2 + 4/N)
 }
@@ -276,6 +372,117 @@ sim_data = function( k,
   
   return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
 }
+
+
+
+# with clustering
+# updated 2020-6-5
+sim_data2 = function( k, # total number of studies
+                      m = k, # number of clusters (m=k implies no clustering)
+                      b0, # intercept
+                      bc, # effect of continuous moderator
+                      bb, # effect of binary moderator 
+                      V,
+                      Vzeta = 0, # between-cluster variance (must be less than V)
+                      muN, 
+                      minN,
+                      sd.w, 
+                      true.effect.dist) {
+  
+  # # @test for m=k case
+  # # TEST ONLY
+  # k = 43
+  # m = 43
+  # b0 = 0.5 # intercept
+  # bc = 0.5 # effect of continuous moderator
+  # bb = 1 # effect of binary moderator
+  # V = .5
+  # Vzeta = 0.25
+  # muN = 100
+  # minN = 50
+  # sd.w = 1
+  # true.effect.dist = "normal"
+  
+  
+  # initialize estimated ES to values that will enter the while-loop
+  t2 = 0  
+  
+  if ( Vzeta > V ) stop( "Vzeta must be less than or equal to V")
+  
+  # avoid t2 = 0 samples
+  # ~~~~~~ NOTE: NEED TO BE CAREFUL CHOOSING PARAMETERS TO AVOID SYSTEMATICALLY
+  # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
+  # ~~~ MAYBE DON'T NEED TO REJECT THESE
+  while ( t2 == 0 ) {
+    #while ( (M <= 0) | (V == 0) ) {   
+    yi = c()
+    vyi = c()
+    Mi = c()
+    mu = c()
+    Zb = c()
+    Zc = c()
+    
+    # randomly assign studies to clusters
+    # @different from SAPB method of fixing number of studies in each cluster
+    # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced
+    cluster = sample( 1:m, size = k, replace = TRUE )
+    
+    # generate cluster random intercepts (zeta)
+    # these are normal even when true effect dist is exponential
+    zeta1 = rnorm( n = m, mean = 0, sd = sqrt( Vzeta ) )  # one entry per cluster
+    zeta1i = zeta1[cluster]  # one entry per study
+    
+    # simulate k studies
+    for (i in 1:k) {
+      study = sim_one_study2( b0, # intercept
+                              bc, # effect of continuous moderator
+                              bb, # effect of binary moderator
+                              V = V, 
+                              Vzeta = Vzeta, 
+                              zeta1 = zeta1i[k], # cluster random intercept for this study;s cluster
+                              muN = muN,
+                              minN = minN,
+                              sd.w = sd.w,
+                              true.effect.dist = true.effect.dist)
+      yi = c( yi, study$yi )  # append this study's ES to the list
+      vyi = c( vyi, study$vyi )  # append this study's variance to the list
+      Mi = c( Mi, study$Mi )  # append this study's mean to the list
+      mu = c( mu, study$mu )
+      Zc = c( Zc, study$Zc )
+      Zb = c( Zb, study$Zb )
+      # @ record clusters and anything else along those lines
+    }
+    
+    # fit RE model in order to record t2
+    # @ does this need updating for clusters?
+    # @replace with robumeta
+    temp = rma.uni( yi=yi,
+                    vi=vyi,
+                    measure="SMD",
+                    knha = TRUE,
+                    method = "REML" )
+    t2 = temp$tau2
+  } # end "while(t2==0)"
+  
+  return( data.frame( Mi, zeta1i, mu, Zc, Zb, yi, vyi ) )
+}
+
+# # test
+# d = sim_data2(k = 1500,
+#               m = 50,
+#               b0 = 0.5, # intercept
+#               bc = 0.5, # effect of continuous moderator
+#               bb = 1, # effect of binary moderator
+#               V = .5,
+#               Vzeta = 0.25,
+#               muN = 100,
+#               minN = 50,
+#               sd.w = 1,
+#               true.effect.dist = "expo")
+# var(d$zeta1i) # should be close to Vzeta (need a lot of clusters for this to work)
+# var(d$mu)  # should be close to V
+# var(d$Mi)  # should be close to V - Vzeta
+
 
 
 
@@ -356,7 +563,7 @@ make_scen_params = function( method,
                                              V = V),
             
             TheoryDiff = TheoryP - TheoryP.ref
-            )
+    )
   
   
   
@@ -376,13 +583,13 @@ make_scen_params = function( method,
 # return the threshold q that is the TheoryP^th quantile 
 #  when moderators are set to zc.star and zb.star
 calculate_theory_p = function(true.effect.dist, 
-                       q,
-                       b0,
-                       bc,
-                       bb,
-                       zc,   
-                       zb,
-                       V){
+                              q,
+                              b0,
+                              bc,
+                              bb,
+                              zc,   
+                              zb,
+                              V){
   
   # get the mean for this combination of moderators
   mu = b0 + bc*zc + bb*zb
@@ -572,7 +779,7 @@ sbatch_not_run = function(.results.singles.path,
 #  WILL SILENTLY IGNORE THE BATCH COMMANDS DUE TO EXTRA WHITESPACE!!
 sbatch_skeleton <- function() {
   return(
-"#!/bin/bash
+    "#!/bin/bash
 #################
 #set a job name  
 #SBATCH --job-name=JOBNAME
@@ -778,7 +985,7 @@ stitch_files = function(.results.singles.path, .results.stitched.write.path=.res
   s <- do.call(rbind, tables)
   
   names(s) = names( read.csv(keepers[1], header= TRUE) )
-
+  
   if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
   write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
   return(s)

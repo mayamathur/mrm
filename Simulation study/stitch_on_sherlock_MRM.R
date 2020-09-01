@@ -46,13 +46,28 @@ dim(s)
 length(unique(s$scen.name))
 
 
+##### Quick Look at Results #####
+# assumes a single scenario
+mean(s$Phat)
+table(s$TheoryP)
+bias = mean(s$Phat) - s$TheoryP[1]
+mean(s$PhatBtMn, na.rm=TRUE); bias  # hope this is equal to the bias
+
+
+mean(s$Diff)
+table(s$TheoryDiff)
+bias = mean(s$Diff) - s$TheoryDiff[1]
+mean(s$DiffBtMn, na.rm=TRUE); bias  # hope this is equal to the bias
+
+
+##### Move to Desktop #####
 # Sherlock -> Desktop
 scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
 
 
 
 
-
+##### Look for Missed Jobs #####
 # look for missed jobs
 missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
                 "/home/groups/manishad/MRM/sim_results",
