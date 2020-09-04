@@ -47,6 +47,8 @@ length(unique(s$scen.name))
 
 
 ##### Quick Look at Results #####
+
+
 # assumes a single scenario
 mean(s$Phat)
 table(s$TheoryP)

@@ -12,10 +12,7 @@ library(testthat)
 #  calib.method = "MR" (one-stage) as a new round of simulations
 
 # location for calib.method = DL results
-stitched.data.dir1 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-15 all with calib.method = DL"
-
-# location for calib.method = MR results
-stitched.data.dir2 = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-19 all with calib.method = MR"
+stitched.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-4 bias diagnostics 1"
 
 # where to put the merged and prepped results
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results"
@@ -23,16 +20,8 @@ prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-re
 
 ################################## DATA PREP ##################################
 
-setwd(stitched.data.dir1)
-s1 = read.csv("stitched.csv")
-# add calib.method because we ran these sims before introducing this as a manipulated scenario parameter
-s1$calib.method = "DL"
-
-setwd(stitched.data.dir2)
-s2 = read.csv("stitched.csv")
-
-# merge them
-s = rbind(s1, s2)
+setwd(stitched.data.dir)
+s = read.csv("stitched.csv")
 
 dim(s)
 length(unique(s$scen.name))  # expect 240
@@ -64,8 +53,6 @@ prop.table( table(s$Note2, useNA = "ifany") )
 s %>% group_by(calib.method) %>%
   summarise( mean( !is.na(Note2) ) )
 
-# @temp
-s$Phat[ s$scen.name == "165" ]
 
 ##### Outcome and Parameter Variables #####
 # "outcome" variables used in analysis
@@ -73,7 +60,7 @@ analysis.vars = c(
   "Phat",
   
   "TheoryP.ref",
-  # "PhatRef",  # NOT USING BECAUSE OF ERROR IN DOPARALLEL THAT RECORDS THIS (SEE THAT FILES)
+  "PhatRef", 
   
   "TheoryDiff",
   "Diff",
@@ -86,24 +73,39 @@ analysis.vars = c(
   "PhatRefCIWidth",
   "DiffCIWidth",
   
-  # to be created in mutate below:
+  ##### variables to be created in mutate below:
   "PhatAbsBias",
+  "Phat2AbsBias",
   "DiffAbsBias",
+  "Diff2AbsBias",
   
   "PhatBias",
+  "Phat2Bias",
   "DiffBias",
+  "Diff2Bias",
   
   "PhatRelBias",
+  "Phat2RelBias",
   "DiffRelBias",
+  "Diff2RelBias",
   
+  # diagnostics regarding meta-analysis estimates
   "EstMeanRelBias",
   "EstMeanAbsBias",
   "EstVarAbsBias",
-  "EstVarRelBias")
+  "EstVarRelBias",
+  
+  # diagnostics regarding bootstraps
+  "PhatEmpSD",
+  "PhatBtSD",
+  
+  "DiffEmpSD",
+  "DiffBtSD"
+  )
 
 
 
-
+# variables that define the scenarios
 param.vars = c("scen.name",
                "calib.method",
                "k",
@@ -115,25 +117,43 @@ param.vars = c("scen.name",
 
 ################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
+# bias-corrected Phat and Diff
+# using the bootstrap mean
+# @note that PhatBtMn is a misnomer; it's actually the bootstrap bias estimate
+s$Phat2 = s$Phat - s$PhatBtMn
+s$Diff2 = s$Diff - s$DiffBtMn
+
 # IMPORTANT NOTE: if you add variables here, need to add them to analysis.vars
 #  vector above so that they are grouped in the dplyr work below
 s3 = s %>%
   # iterate-level states:
   mutate( PhatBias = (Phat - TheoryP),
+          Phat2Bias = (Phat2 - TheoryP),
           DiffBias = (Diff - TheoryDiff),
+          Diff2Bias = (Diff2 - TheoryDiff),
           
           PhatAbsBias = abs(Phat - TheoryP),
+          Phat2AbsBias = abs(Phat2 - TheoryP),
           DiffAbsBias = abs(Diff - TheoryDiff),
+          Diff2AbsBias = abs(Diff2 - TheoryDiff),
           
           PhatRelBias = Phat/TheoryP,
+          Phat2RelBias = Phat2/TheoryP,
           DiffRelBias = Diff/TheoryDiff,
+          Diff2RelBias = Diff2/TheoryDiff,
           
           # diagnostics
           EstMeanRelBias = EstMean / TrueMean,
           EstMeanAbsBias = abs(EstMean - TrueMean),
           
           EstVarRelBias = EstVar / TrueVar,
-          EstVarAbsBias = abs(EstVar - TrueVar) )
+          EstVarAbsBias = abs(EstVar - TrueVar),
+          
+          PhatEmpSD = sd(Phat),
+          PhatBtSD = mean(PhatBtSD),
+          DiffEmpSD = sd(Diff),
+          DiffBtSD = mean(DiffBtSD)
+          )
 
 # recode calib.method
 s3$calib.method.pretty = NA
@@ -149,7 +169,7 @@ setwd(prepped.data.dir)
 write.csv(s3, "s3_dataset_MRM.csv")
 
 # sanity check for one scenario
-# mean = 1.18 and varies across iterates, as expected
+# mean varies across iterates, as expected
 summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "MR"])
 table( s3$scen.name == "134" & s3$calib.method == "MR" )
 
@@ -175,7 +195,7 @@ expect_equal( FALSE,
 
 
 # sanity check for one scenario
-# still 1.18 but no longer varies across scenarios
+# same mean as above but no longer varies across scenarios
 table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "MR"])
 
 
@@ -185,11 +205,6 @@ s4$unique.scen = paste(s4$scen.name, s4$calib.method)
 agg = s4[ !duplicated(s4$unique.scen), ]
 dim(agg)  # should be 240 * 2 methods = 480
 
-# @ temp
-# THE SCENARIO DISAPPEARS??
-# BM: FIGURE OUT WHY THE SCENARIO I WANT HAS DISAPPEARED UPON AGGREGATION
-table( s4$unique.scen[ s4$scen.name == "134" & s4$calib.method == "MR" ] )
-agg$PhatRelBias[ agg$unique.scen == "134 MR" ]
 
 # note some scenarios always have NA for coverage:
 table(is.na(s4$CoverDiff)) 

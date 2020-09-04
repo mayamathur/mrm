@@ -290,6 +290,7 @@ rep.time = system.time({
         #head( boot.res$t )
         
         # bias
+        # @RETITLE THIS - THESE ARE THE BOOTSTRAP BIAS ESTIMATES, NOT THE MEANS (i.e., boot mean - sample estimates)
         bt.means = as.numeric( colMeans(boot.res$t) - d.stats[1:3] )
         # @check me baby one more time
         bt.sds = apply( boot.res$t, 2, sd )

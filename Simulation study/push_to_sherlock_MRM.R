@@ -13,6 +13,7 @@ squeue -u mmathur -t PENDING
 
 # see the datasets
 vim /home/groups/manishad/MRM/sim_results/long/long_results_job_1_.csv
+cd /home/groups/manishad/MRM/sim_results/long
 ls -l . | egrep -c '^-'
 
 # see the errors
