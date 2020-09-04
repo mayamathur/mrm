@@ -48,7 +48,7 @@ xmax = max( c(agg$bias.bt, agg$bias ), na.rm = TRUE )
 xmin = min( c(agg$bias.bt, agg$bias ), na.rm = TRUE )
 
 # bm: try to figure out characteristics of scenarios in which boot mean isn't a good indicator of bias
-lm( agg$relbias2 ~ )
+
 
 
 
@@ -205,6 +205,8 @@ ggplot( data = agg,
 
 
 ################################## PRELIMINARIES ##################################
+
+rm(list=ls())
 
 library(dplyr)
 library(xtable)
