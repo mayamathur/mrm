@@ -148,10 +148,45 @@ ggplot( ) +
               scales = "free"  )
 
 
+##### Look at Dist of EstVar for Handful of Scenarios #####
+
+# bm
+# scenarios with little bias
+agg = agg %>% arrange( PhatRelBias )ss
+
+( badScen = agg$unique.scen[ agg$PhatRelBias > 1.2 ] )
+( goodScen = agg$unique.scen[ agg$PhatRelBias < 1.01 ][1:5] )
+
+temp = s %>% filter(unique.scen %in% goodScen)
+
+
+ggplot( ) +
+  geom_histogram( data = temp,
+                  aes( x = EstVar ),
+                  alpha = 0.3,
+                  color = "black") +
+  
+  # distribution of bootstrap means
+  # PhatBtMn = bootmean - Phat
+  geom_histogram( data = temp,
+                  aes( x = EstVar ),  # actual bootstrap mean
+                  alpha = 0.3,
+                  color = "blue") +
+  
+  geom_vline( data = temp,
+              aes(xintercept = V),
+              lty = 2) +
+
+  
+  theme_classic() +
+  facet_wrap( ~ unique.scen,
+              scales = "free"  )
+
+
 
 
 ##### Look for a Highly Biased Scenario in Which Using Boot Mean Doesn't Help #####
-
+# 224
 View( agg %>% arrange( relbias2 ) )
 
 # bm
@@ -159,9 +194,10 @@ agg %>% filter( relbias2 > 1.2 &
                   TheoryP >= 0.20 &
                   k >= 10 )
 
-temp = s %>% filter( scen.name == 224 )
+temp = s %>% filter( scen.name == 14 )
 
 mean(temp$Phat)
+mean(temp$Phat2, na.rm = TRUE)
 mean(temp$TheoryP)
 mean(temp$Phat + temp$PhatBtMn, na.rm = TRUE)  # Phat2
 

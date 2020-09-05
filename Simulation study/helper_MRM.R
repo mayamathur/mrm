@@ -350,7 +350,7 @@ sim_data = function( k,
   # ~~~~~~ NOTE: NEED TO BE CAREFUL CHOOSING PARAMETERS TO AVOID SYSTEMATICALLY
   # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
   # ~~~ MAYBE DON'T NEED TO REJECT 
-  while ( t2 == 0 ) {
+  #while ( t2 == 0 ) {
     #while ( (M <= 0) | (V == 0) ) {   
     yi = c()
     vyi = c()
@@ -377,14 +377,14 @@ sim_data = function( k,
       Zb = c( Zb, study$Zb )
     }
     
-    # fit RE model in order to record t2
-    temp = rma.uni( yi=yi,
-                    vi=vyi,
-                    measure="SMD",
-                    knha = TRUE,
-                    method = "REML" )
-    t2 = temp$tau2
-  }
+  #   # fit RE model in order to record t2
+  #   temp = rma.uni( yi=yi,
+  #                   vi=vyi,
+  #                   measure="SMD",
+  #                   knha = TRUE,
+  #                   method = "REML" )
+  #   t2 = temp$tau2
+  # }
   
   return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
 }

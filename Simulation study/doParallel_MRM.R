@@ -14,6 +14,18 @@ rm( list = ls() )
 # are we running locally?
 run.local = FALSE
 
+#@ move these if you end up using them
+# @temp
+truncLogit <- function(p) {
+  p[p==0] = 0.001
+  p[p==1] = 0.999
+  log(p/(1-p))
+}
+
+expit = function(x) {
+  exp(x) / (1 + exp(x))
+}
+
 ######################################## FOR CLUSTER USE ########################################
 if (run.local == FALSE) {
 
@@ -114,13 +126,29 @@ if (run.local == FALSE) {
 if ( run.local == TRUE ) {
   rm(list=ls())
   
+
+  library(crayon)
+  library(dplyr)
+  library(foreach)
+  library(doParallel)
+  library(boot)
+  library(metafor)
+  library(robumeta)
+  library(data.table)
+  library(purrr)
+  library(metRology)
+  library(fansi)
+  library(MetaUtility)
+  
+  
+  
   # helper fns
   code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
   setwd(code.dir)
   source("helper_MRM.R")
   
   # just one scenario
-  # 164 MR  was especially upward-biased for Phat and Diff
+  # 14 MR
   ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
                                     calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
                                     k = c(20),
@@ -139,8 +167,8 @@ if ( run.local == TRUE ) {
                                     minN = c(50),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("expo"),
-                                    TheoryP = c(0.2),
+                                    true.effect.dist = c("normal"),
+                                    TheoryP = c(0.05),
                                     start.at = 1 ) )
   
   
@@ -186,7 +214,7 @@ if ( run.local == TRUE ) {
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
   sim.reps = 250
-  boot.reps = 2000  # ~~ temp only
+  boot.reps = 500  # ~~ temp only
   
   
   library(foreach)
@@ -233,7 +261,7 @@ rep.time = system.time({
     TrueMean = p$b0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
     ##### Simulate Dataset #####
-    # for clustering, use sim_data2
+    # @for clustering, will need to use sim_data2
     d = sim_data( k = p$k, 
                   b0 = p$b0, # intercept
                   bc = p$bc, # effect of continuous moderator
@@ -260,6 +288,8 @@ rep.time = system.time({
     # Phat difference for two levels of moderators
     PhatDiff = d.stats$Phat.diff
     
+    # bm
+    
     ##### Bootstrap #####
     # currently boot.whole is the only method
     if ( p$method == "boot.whole" ) {
@@ -267,6 +297,8 @@ rep.time = system.time({
       Note = NA
       tryCatch({
         
+        
+        # this is just the resampling part, not the CI estimation
         boot.res = boot( data = d, 
                          parallel = "multicore",
                          R = boot.reps, 
@@ -283,16 +315,23 @@ rep.time = system.time({
                            # only return the 3 stats of interest
                            c( as.numeric(b.stats["Phat"]),
                               as.numeric(b.stats["Phat.ref"]),
-                              as.numeric(b.stats["Phat.diff"]) )
+                              as.numeric(b.stats["Phat.diff"]),
+                              as.numeric(b.stats["t2"]),
+                              truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
+                              )
                          } )
         boot.res
         # for debugging
         #head( boot.res$t )
         
-        # bias
-        # @RETITLE THIS - THESE ARE THE BOOTSTRAP BIAS ESTIMATES, NOT THE MEANS (i.e., boot mean - sample estimates)
-        bt.means = as.numeric( colMeans(boot.res$t) - d.stats[1:3] )
-        # @check me baby one more time
+        # #@temp
+        # hist(boot.res$t[,1])
+        # hist( logit(boot.res$t[,1]) )
+        # # doesn't really work -- still has huge point masses from 0s and 1s
+        
+        
+        # boot diagnostics
+        bt.means = as.numeric( colMeans(boot.res$t) )
         bt.sds = apply( boot.res$t, 2, sd )
         
         # get CIs for each estimand individually in case some work and others don't
@@ -314,25 +353,25 @@ rep.time = system.time({
         } )
         
         tryCatch({
-          # CAUGHT ERROR! THIS WAS STILL USING INDEX 2 :) 
-          # SO THAT'S WHY IT SUCKED
           CI = boot.ci(boot.res, type = "bca", index = 3)
           DiffBootCIs = c( CI[[4]][4], CI[[4]][5] )
         }, error = function(err){
           DiffBootCIs <<- c(NA, NA)
         } )
         
-        # bm
+
+        
       # this part happens only if bootstrapping fails completely
         # not just CIs
       }, error = function(err){
         # one list item for each stat of interest (3),
         #  and one sub-entry for lower/upper CI limit
+        n.ests = 5  # needs to match what's returned in boot.res
         PhatBootCIs <<- c(NA, NA)
         PhatRefBootCIs <<- c(NA, NA)
         DiffBootCIs <<- c(NA, NA)
-        bt.means <<- c(NA, NA, NA)
-        bt.sds <<- c(NA, NA, NA)
+        bt.means <<- rep(NA, n.ests)
+        bt.sds <<- rep(NA, n.ests)
         #boot.median <<- NA
         Note <<- paste("Resampling failed completely: ", err$message, sep="")
         #browser()
@@ -347,7 +386,7 @@ rep.time = system.time({
  
                       TrueVar = p$V,
                       EstVar = d.stats$t2,
-                      
+                      EstVarBtMn = bt.means[4],
                       
                       # for "star" level of moderators
                       Phat = d.stats$Phat,
@@ -355,6 +394,7 @@ rep.time = system.time({
                       PhatHi = PhatBootCIs[2],
                       PhatBtMn = bt.means[1],
                       PhatBtSD = bt.sds[1],
+                      LogitPhatBtMn = bt.means[5],
                       
                       # for reference level of moderators
                       PhatRef = d.stats$Phat.ref, 
@@ -370,7 +410,7 @@ rep.time = system.time({
                       DiffBtMn = bt.means[3],
                       DiffBtSD = bt.sds[3],
                       
-                      # method of calculating CI: exponentiate logit or not?
+                      # method of calculating CI
                       Method = p$method,
                       
                       # CI performance
@@ -402,7 +442,7 @@ rep.time = system.time({
 
 head(rs)
 
-# bm: running this one bad scenario while saving additional info
+# running this one bad scenario while saving additional info
 #  mostly interested in the boot means here
 
 # time in seconds
@@ -411,32 +451,56 @@ rs$rep.time = rep.time
 
 rs$PhatBtMn
 
-# if ( run.local == TRUE ) {
-#   # ~~ COMMENT OUT BELOW PART TO RUN ON CLUSTER
-#   # see results
-#   analysis.vars = c(
-#                     # "TrueMean",
-#                     # "EstMean",
-#                     # "TrueVar",
-#                     # "EstVar",
-#     
-#                     "TheoryP",
-#                     "Phat",
-#                     
-#                     "TheoryP.ref",
-#                     "PhatRef",
-#                     
-#                     "TheoryDiff",
-#                     "Diff",
-#                     
-#                     "CoverPhat",
-#                     "CoverPhatRef",
-#                     "CoverDiff")
-#   
-#   data.frame( rs %>% group_by(Method) %>%
-#     summarise_at( analysis.vars,
-#                   function(x) mean(x, na.rm = TRUE) ) )
-# }
+######### @TEMP ONLY
+
+# look at logit distribution
+ggplot( ) +
+  geom_histogram( data = rs,
+                  aes( x = truncLogit(Phat) ),
+                  alpha = 0.3 ) +
+  
+  # distribution of bootstrap means
+  geom_histogram( data = rs,
+                  aes( x = LogitPhatBtMn ),  # actual bootstrap mean
+                  alpha = 0.3,
+                  color = "blue") +
+  
+  # black line: truth
+  geom_vline( data = rs,
+              aes(xintercept = truncLogit(rs$TheoryP[1]) ),
+              lty = 2) +
+  
+  # red line: mean of Phats
+  geom_vline( data = rs,
+              aes(xintercept = mean( truncLogit(rs$Phat), na.rm = TRUE)),
+              color = "red",
+              lty = 2) +
+  theme_classic()
+
+
+# these should be very close, but not the same due to truncation of logit
+mean(rs$Phat)
+mean( expit( truncLogit(rs$Phat) ), na.rm = TRUE )
+
+# these are different because means are involved
+mean(rs$PhatBtMn, na.rm = TRUE)
+mean( expit(rs$LogitPhatBtMn), na.rm = TRUE )
+
+# whoa...second one sucks! 
+mean( rs$Phat - (rs$PhatBtMn - rs$Phat), na.rm = TRUE ) # bias correction #1
+mean( expit( truncLogit(rs$Phat) - ( rs$LogitPhatBtMn - truncLogit(rs$Phat) ) ), na.rm = TRUE ) # bias correction #2
+
+
+rs$V[1]
+mean(rs$EstVar)
+hist(rs$EstVar)
+# bias correction actually makes the variance even worse...
+mean( rs$EstVar - (rs$EstVarBtMn - rs$EstVar), na.rm=TRUE ) # bias correction
+
+# issue of discarding t2=0 sim iterates?
+# bm
+
+###### END OF TEMP
 
 ########################### WRITE LONG RESULTS  ###########################
 if ( run.local == FALSE ) {
