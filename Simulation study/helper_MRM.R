@@ -7,16 +7,32 @@ my_summarise = function(dat){
   round( dat %>% summarise( n.scens = n(),
                             
                             PhatBias = mean(PhatBias, na.rm = TRUE),
+                            Phat2Bias = mean(Phat2Bias, na.rm = TRUE),
+                            
+                            PhatRelBias = mean(PhatRelBias, na.rm = TRUE),
+                            Phat2RelBias = mean(Phat2RelBias, na.rm = TRUE),
+                            
                             PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
+                            Phat2AbsBias = mean(Phat2AbsBias, na.rm = TRUE),
+                            
                             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
                             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
                             
                             DiffBias = mean(DiffBias, na.rm = TRUE),
+                            Diff2Bias = mean(Diff2Bias, na.rm = TRUE),
+                            
+                            DiffRelBias = mean(DiffRelBias, na.rm = TRUE),
+                            Diff2RelBias = mean(Diff2RelBias, na.rm = TRUE),
+                            
                             DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
+                            Diff2AbsBias = mean(Diff2AbsBias, na.rm = TRUE),
+                            
                             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-                            MinCoverDiff = min(CoverDiff, na.rm = TRUE) ),
+                            MinCoverDiff = min(CoverDiff, na.rm = TRUE),
          
-         #EstMeanAbsBias = mean(EstMeanAbsBias, na.rm = TRUE) ),
+                            # for comparison
+                            EstMeanRelBias = mean(EstMeanRelBias, na.rm = TRUE),
+                            EstVarRelBias = mean(EstVarRelBias, na.rm = TRUE) ),
          2 )
 }
 

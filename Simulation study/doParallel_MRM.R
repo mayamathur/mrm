@@ -314,7 +314,9 @@ rep.time = system.time({
         } )
         
         tryCatch({
-          CI = boot.ci(boot.res, type = "bca", index = 2)
+          # CAUGHT ERROR! THIS WAS STILL USING INDEX 2 :) 
+          # SO THAT'S WHY IT SUCKED
+          CI = boot.ci(boot.res, type = "bca", index = 3)
           DiffBootCIs = c( CI[[4]][4], CI[[4]][5] )
         }, error = function(err){
           DiffBootCIs <<- c(NA, NA)

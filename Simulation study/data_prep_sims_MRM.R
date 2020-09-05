@@ -3,6 +3,8 @@
 
 ################################## PRELIMINARIES ##################################
 
+rm(list=ls())
+
 library(dplyr)
 library(testthat)
 
@@ -108,6 +110,7 @@ analysis.vars = c(
 # variables that define the scenarios
 param.vars = c("scen.name",
                "calib.method",
+               "calib.method.pretty",
                "k",
                "V",
                "minN",
@@ -137,23 +140,18 @@ s3 = s %>%
           DiffAbsBias = abs(Diff - TheoryDiff),
           Diff2AbsBias = abs(Diff2 - TheoryDiff),
           
-          PhatRelBias = Phat/TheoryP,
-          Phat2RelBias = Phat2/TheoryP,
-          DiffRelBias = Diff/TheoryDiff,
-          Diff2RelBias = Diff2/TheoryDiff,
+          # @note that these are relative ABSOLUTE bias
+          PhatRelBias = PhatAbsBias/TheoryP,
+          Phat2RelBias = Phat2AbsBias/TheoryP,
+          DiffRelBias = DiffAbsBias/TheoryDiff,
+          Diff2RelBias = Diff2AbsBias/TheoryDiff,
           
           # diagnostics
-          EstMeanRelBias = EstMean / TrueMean,
           EstMeanAbsBias = abs(EstMean - TrueMean),
+          EstMeanRelBias = EstMeanAbsBias / TrueMean,
           
-          EstVarRelBias = EstVar / TrueVar,
           EstVarAbsBias = abs(EstVar - TrueVar),
-          
-          PhatEmpSD = sd(Phat),
-          PhatBtSD = mean(PhatBtSD),
-          DiffEmpSD = sd(Diff),
-          DiffBtSD = mean(DiffBtSD)
-          )
+          EstVarRelBias = EstVarAbsBias / TrueVar )
 
 # recode calib.method
 s3$calib.method.pretty = NA
@@ -162,6 +160,9 @@ s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
 
 # unique scenario variable
 s3$unique.scen = paste(s3$scen.name, s3$calib.method)
+
+# remove dumb columns
+s3 = s3[ !names(s3) %in% c("X.1", "X") ]
 
 ##### Save Dataset ####
 # saving now BEFORE we overwrite Phat, etc., with the versions that are aggregated by scenario
@@ -176,15 +177,42 @@ table( s3$scen.name == "134" & s3$calib.method == "MR" )
 
 ##### Overwrite Analysis Variables As Their Within-Scenario Means #####
 
+# organize variables into 3 mutually exclusive sets: 
+# - parameter variables for grouping
+# - variables to drop completely
+# - variables that are static within a scenario, for which we should just take the first one
+# - variables for which we should take the mean within scenarios
+
+names(s3)[ !names(s3) %in% param.vars ]
+toDrop = c("Note", "method", "tail", "Note2" )
+firstOnly = c("unique.scen")
+takeMean = names(s3)[ !names(s3) %in% c(param.vars, nonNumeric) ]
+# sanity check: have all variables been sorted into these categories?
+expect_equal( TRUE,
+              all( names(s3) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
+
+
 s4 = s3 %>%
-  # scenario-level stats:
+
+  # take just first entry of non-parameter variables that are static within scenarios
+  group_by_at(param.vars) %>%
+  mutate_at( firstOnly, 
+          function(x) x[1] ) %>%
+  
+  # make certain ad hoc variables that don't conform to below rules
   group_by_at(param.vars) %>%
   mutate( sim.reps = n(),
-          bca.success = mean( is.na(Note) ) ) %>%
-  # more scenario-level stats (mean outcomes)
+          bca.success = mean( is.na(Note) ),
+          PhatEmpSD = sd(Phat),
+          DiffEmpSD = sd(Diff) ) %>%
+  
+  # take means of numeric variables
   group_by_at(param.vars) %>%
-  mutate_at( analysis.vars,
-             function(x) mean(x, na.rm = TRUE) )
+  mutate_at( takeMean,
+             function(x) mean(x, na.rm = TRUE) ) %>%
+  
+  select(-toDrop)
+  
 
 
 # sanity check: SDs of all analysis variables should be 0 within unique scenarios
@@ -201,7 +229,7 @@ table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "MR"])
 
 # make aggregated data by keeping only first row for each 
 #  combination of scenario name and calib.method
-s4$unique.scen = paste(s4$scen.name, s4$calib.method)
+# s4$unique.scen = paste(s4$scen.name, s4$calib.method)
 agg = s4[ !duplicated(s4$unique.scen), ]
 dim(agg)  # should be 240 * 2 methods = 480
 
