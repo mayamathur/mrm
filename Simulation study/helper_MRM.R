@@ -52,7 +52,7 @@ my_summarise = function(dat){
 # }
 
 
-# bm3
+
 # draw cluster bootstrap sample
 # assumes cluster variable is named "cluster"
 # this is Davison & Hinkley's recommendation 
@@ -80,6 +80,7 @@ prop_stronger_mr = function(dat,
                             zb.ref = NA,
                             zc.ref = NA,
                             calib.method = "DL",
+            
                             simple.output = FALSE) {  # for ease with boot() fn
   
   # # test only
@@ -104,6 +105,7 @@ prop_stronger_mr = function(dat,
   bhatb = m$b.r[3]
   t2 = m$mod_info$tau.sq
   
+  # bm: here, optionally bias-correct bhat0, bhatc, and bhatb before proceeding
   
   # point estimates shifted to have Z = 0
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  
@@ -359,6 +361,7 @@ sim_data = function( k,
     Zb = c()
     Zc = c()
     
+  
     # simulate k studies
     for (i in 1:k) {
       study = sim_one_study( b0, # intercept
@@ -376,6 +379,7 @@ sim_data = function( k,
       Zc = c( Zc, study$Zc )
       Zb = c( Zb, study$Zb )
     }
+  
     
   #   # fit RE model in order to record t2
   #   temp = rma.uni( yi=yi,

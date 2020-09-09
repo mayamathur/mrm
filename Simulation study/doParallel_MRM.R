@@ -272,7 +272,6 @@ rep.time = system.time({
                   sd.w = p$sd.w,
                   true.effect.dist = p$true.effect.dist )
     
-    
     ##### Get Meta-Regressive Phat for This Dataset #####
     d.stats = prop_stronger_mr(d,
                                zc.star = p$zc.star,
@@ -479,12 +478,12 @@ ggplot( ) +
 
 
 # these should be very close, but not the same due to truncation of logit
-mean(rs$Phat)
+mean(rs$Phat)  # 0.0797 with t2==0 condition; 0.09 with the condition
 mean( expit( truncLogit(rs$Phat) ), na.rm = TRUE )
 
 # these are different because means are involved
 mean(rs$PhatBtMn, na.rm = TRUE)
-mean( expit(rs$LogitPhatBtMn), na.rm = TRUE )
+mean( expit(rs$LogitPhatBtMn), na.rm = TRUE )  # this one is closer to the truth
 
 # whoa...second one sucks! 
 mean( rs$Phat - (rs$PhatBtMn - rs$Phat), na.rm = TRUE ) # bias correction #1
@@ -493,7 +492,7 @@ mean( expit( truncLogit(rs$Phat) - ( rs$LogitPhatBtMn - truncLogit(rs$Phat) ) ),
 
 rs$V[1]
 mean(rs$EstVar)
-hist(rs$EstVar)
+hist(rs$EstVar)  # 0.01186237 with t2==0 condition
 # bias correction actually makes the variance even worse...
 mean( rs$EstVar - (rs$EstVarBtMn - rs$EstVar), na.rm=TRUE ) # bias correction
 
