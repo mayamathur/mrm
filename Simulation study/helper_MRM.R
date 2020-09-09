@@ -80,15 +80,15 @@ prop_stronger_mr = function(dat,
                             zb.ref = NA,
                             zc.ref = NA,
                             calib.method = "DL",
-            
                             simple.output = FALSE) {  # for ease with boot() fn
   
-  # # test only
-  # dat = d
-  # zc.star = .5
-  # zb.star = 1
-  # zb.ref = 0
-  # zc.ref = -0.5
+  # test only
+  dat = d
+  zc.star = .5
+  zb.star = 1
+  zb.ref = 0
+  zc.ref = -0.5
+  calib.method = "MR bt mn correct"
   
   yi = dat$yi
   vyi = dat$vyi
@@ -104,9 +104,7 @@ prop_stronger_mr = function(dat,
   bhatc = m$b.r[2]
   bhatb = m$b.r[3]
   t2 = m$mod_info$tau.sq
-  
-  # bm: here, optionally bias-correct bhat0, bhatc, and bhatb before proceeding
-  
+
   # point estimates shifted to have Z = 0
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  
   
@@ -123,9 +121,60 @@ prop_stronger_mr = function(dat,
     ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
   }
   
+  
+  if ( calib.method == "MR bt mn correct" ) {
+   
+    boot.res = boot( data = dat, 
+                     parallel = "multicore",
+                     R = boot.reps, 
+                     statistic = function(original, indices) {
+                       b = dat[indices,]
+                       
+                       tryCatch({
+                         
+                         mb = robu( yi ~ Zc + Zb, 
+                                   data = b, 
+                                   studynum = 1:nrow(b),
+                                   var.eff.size = vyi )
+                         bhat0.bt = mb$b.r[1]
+                         bhatc.bt = mb$b.r[2]
+                         bhatb.bt = mb$b.r[3]
+                         t2.bt = mb$mod_info$tau.sq
+                         
+                         return( c(bhat0.bt, bhatc.bt, bhatb.bt, t2.bt) )
+                         
+                       }, error = function(err){
+                         return( c(NA, NA, NA, NA) )
+                       })
+                       
+                     } )
+    bt.means = as.numeric( colMeans( boot.res$t ) )
+    bt.bias = bt.means - c(bhat0, bhatc, bhatb, t2)
+    # sanity check for how boot is calculating the bias
+    # bhat0 - bt.means[1]
+    
+    # # @note the truncation at 0, which may limit the bias correction's impact
+    # EstVarBtCorr = max( t2 - bt.means[2], 0 )
+    # EstVarBtCorrUntrunc = t2 - bt.means[2]
+    # 
+    # # Phat using bias-corrected mean and variance
+    # calib = c(EstMeanBtCorr) + sqrt( c(EstVarBtCorr) / ( c(EstVarBtCorr) + d$vyi) ) * ( d$yi - c(EstMeanBtCorr) )
+    # PhatBtCorr = mean(calib > p$q)
+    
+    # correct the coefficient estimates
+    bhat0 = bhat0 - bt.means[1]
+    bhatc = bhatc - bt.means[2]
+    bhatb = bhatb - bt.means[3]
+    
+    ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
+    
+  }  # end of calib.method == "MR bt mn correct"
+  
+ 
+  
   # q shifted to set moderators to 0
   q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
-  # ~~ NOTE: ASSUMES TAIL = ABOVE
+  # @NOTE: ASSUMES TAIL = ABOVE
   Phat = mean(ens.shift > q.shift)
   
   ##### Reference Level and Difference #####
