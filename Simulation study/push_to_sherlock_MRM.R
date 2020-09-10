@@ -16,9 +16,9 @@ vim /home/groups/manishad/MRM/sim_results/long/long_results_job_1_.csv
 cd /home/groups/manishad/MRM/sim_results/long
 ls -l . | egrep -c '^-'
 
-# see the errors
+###### See the Errors #####
 nano /home/groups/manishad/MRM/sbatch_files/slurm*
-  vim /home/groups/manishad/MRM/sbatch_files/rm_1406.err
+vim /home/groups/manishad/MRM/sbatch_files/rm_1.err
 
 # see the scen parameters
 nano /home/groups/manishad/MRM/scen_params.csv
@@ -52,10 +52,8 @@ scp -r mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sbatch_file
 
 ####################### RUN SBATCH ####################### 
 
-# run one of them on Manisha's nodes
-sbatch -p manishad /home/groups/manishad/MRM/sbatch_files/1.sbatch
-# not on Manisha's nodes
-sbatch -p normal,owners /home/groups/manishad/MRM/sbatch_files/1.sbatch
+# run one of them
+sbatch -p qsu,normal,owners /home/groups/manishad/MRM/sbatch_files/1.sbatch
 
 
 
@@ -73,5 +71,6 @@ scp mmathur@login.sherlock.stanford.edu /home/groups/manishad/MRM/results/overal
   rm /home/groups/manishad/MRM/sbatch_files/rm*
   rm /home/groups/manishad/MRM/sbatch_files/slurm*
   
+  # remove all sbatches
   rm -r /home/groups/manishad/MRM/sbatch_files/*
   

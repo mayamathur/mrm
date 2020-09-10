@@ -1,6 +1,18 @@
 
 # audited the post-NPPhat parts 2020-6-17
 
+
+#@are we still going to use these?
+truncLogit <- function(p) {
+  p[p==0] = 0.001
+  p[p==1] = 0.999
+  log(p/(1-p))
+}
+
+expit = function(x) {
+  exp(x) / (1 + exp(x))
+}
+
 ############################# FN: MAKE SUMMARY TABLE FOR ANALYSIS #############################
 
 my_summarise = function(dat){
@@ -29,7 +41,7 @@ my_summarise = function(dat){
                             
                             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
                             MinCoverDiff = min(CoverDiff, na.rm = TRUE),
-         
+                            
                             # for comparison
                             EstMeanRelBias = mean(EstMeanRelBias, na.rm = TRUE),
                             EstVarRelBias = mean(EstVarRelBias, na.rm = TRUE) ),
@@ -73,6 +85,7 @@ cluster_bt = function(.dat, .clustervar){
 ########################### FN: PHAT FOR META-REGRESSION ###########################
 
 # includes the meta-regression part since we want to bootstrap that process
+# calib.method: "DL", "MR", "MR bt mn correct", "MR bt var correct", "MR bt both correct", "params" (latter bypasses meta-regressive parameter estimation and calibrates using the true parameters as a benchmark)
 prop_stronger_mr = function(dat,
                             zc.star,
                             zb.star,
@@ -81,30 +94,39 @@ prop_stronger_mr = function(dat,
                             zc.ref = NA,
                             calib.method = "DL",
                             simple.output = FALSE) {  # for ease with boot() fn
-  
-  # test only
-  dat = d
-  zc.star = .5
-  zb.star = 1
-  zb.ref = 0
-  zc.ref = -0.5
-  calib.method = "MR bt mn correct"
+  # # test only
+  # dat = d
+  # zc.star = .5
+  # zb.star = 1
+  # zb.ref = 0
+  # zc.ref = -0.5
+  # calib.method = "MR bt mn correct"
   
   yi = dat$yi
   vyi = dat$vyi
   Zc = dat$Zc
   Zb = dat$Zb
   
-  # fit meta-regression
-  m = robu( yi ~ Zc + Zb, 
-            data = dat, 
-            studynum = 1:nrow(dat),
-            var.eff.size = vyi )
-  bhat0 = m$b.r[1]
-  bhatc = m$b.r[2]
-  bhatb = m$b.r[3]
-  t2 = m$mod_info$tau.sq
-
+  
+  if ( calib.method != "params" ) {
+    # fit meta-regression
+    m = robu( yi ~ Zc + Zb, 
+              data = dat, 
+              studynum = 1:nrow(dat),
+              var.eff.size = vyi )
+    bhat0 = m$b.r[1]
+    bhatc = m$b.r[2]
+    bhatb = m$b.r[3]
+    t2 = m$mod_info$tau.sq
+  }
+  
+  if ( calib.method == "params" ) {
+    bhat0 = p$b0
+    bhatc = p$bc
+    bhatb = p$bb
+    t2 = p$V
+  }
+  
   # point estimates shifted to have Z = 0
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  
   
@@ -122,72 +144,77 @@ prop_stronger_mr = function(dat,
   }
   
   
-  if ( calib.method == "MR bt mn correct" ) {
-   
-    boot.res = boot( data = dat, 
-                     parallel = "multicore",
-                     R = boot.reps, 
-                     statistic = function(original, indices) {
-                       b = dat[indices,]
-                       
-                       tryCatch({
+  if ( calib.method %in% c("MR bt mn correct", "MR bt var correct", "MR bt both correct" ) ) {
+    
+    tryCatch({
+      boot.res = boot( data = dat, 
+                       parallel = "multicore",
+                       R = boot.reps, 
+                       statistic = function(original, indices) {
+                         b = dat[indices,]
                          
                          mb = robu( yi ~ Zc + Zb, 
-                                   data = b, 
-                                   studynum = 1:nrow(b),
-                                   var.eff.size = vyi )
+                                    data = b, 
+                                    studynum = 1:nrow(b),
+                                    var.eff.size = vyi )
                          bhat0.bt = mb$b.r[1]
                          bhatc.bt = mb$b.r[2]
                          bhatb.bt = mb$b.r[3]
                          t2.bt = mb$mod_info$tau.sq
                          
                          return( c(bhat0.bt, bhatc.bt, bhatb.bt, t2.bt) )
-                         
-                       }, error = function(err){
-                         return( c(NA, NA, NA, NA) )
-                       })
-                       
-                     } )
-    bt.means = as.numeric( colMeans( boot.res$t ) )
-    bt.bias = bt.means - c(bhat0, bhatc, bhatb, t2)
-    # sanity check for how boot is calculating the bias
-    # bhat0 - bt.means[1]
-    
-    # # @note the truncation at 0, which may limit the bias correction's impact
-    # EstVarBtCorr = max( t2 - bt.means[2], 0 )
-    # EstVarBtCorrUntrunc = t2 - bt.means[2]
-    # 
-    # # Phat using bias-corrected mean and variance
-    # calib = c(EstMeanBtCorr) + sqrt( c(EstVarBtCorr) / ( c(EstVarBtCorr) + d$vyi) ) * ( d$yi - c(EstMeanBtCorr) )
-    # PhatBtCorr = mean(calib > p$q)
-    
-    # correct the coefficient estimates
-    bhat0 = bhat0 - bt.means[1]
-    bhatc = bhatc - bt.means[2]
-    bhatb = bhatb - bt.means[3]
-    
-    ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
+                       } ) # end boot()
+      
+      bt.means = as.numeric( colMeans( boot.res$t, na.rm = TRUE ) )
+      bt.bias = bt.means - c(bhat0, bhatc, bhatb, t2)
+      
+      # correct the coefficient estimates
+      if ( calib.method %in% c("MR bt mn correct", "MR bt both correct") ) {
+        bhat0 = bhat0 - bt.means[1]
+        bhatc = bhatc - bt.means[2]
+        bhatb = bhatb - bt.means[3]
+      }
+      
+      # correct the variance estimate
+      if ( calib.method %in% c("MR bt var correct", "MR bt both correct") ) {
+        t2 = t2 - bt.means[4]
+      }
+      
+      #browser()
+      ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
+      
+    }, error = function(err){
+      # completely skip attempts at estimation that follow
+      Phat <<- NA
+      Phat.ref <<- NA
+      Phat.diff <<- NA
+      bhat0 <<- NA
+      bhatc <<- NA 
+      bhatb <<- NA 
+      t2 <<- NA
+    })
     
   }  # end of calib.method == "MR bt mn correct"
   
- 
-  
-  # q shifted to set moderators to 0
-  q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
-  # @NOTE: ASSUMES TAIL = ABOVE
-  Phat = mean(ens.shift > q.shift)
-  
-  ##### Reference Level and Difference #####
-  if ( !is.na(zc.ref) & !is.na(zb.ref) ) {
+  # ens.shift might not exist if we were trying to bootstrap-correct it but the bootstrapping failed
+  if ( exists("ens.shift") ) {
+    # q shifted to set moderators to 0
+    q.shift = p$q - (bhatc * zc.star) - (bhatb * zb.star) # remove intercept from sum(m$b.r)
+    # @NOTE: ASSUMES TAIL = ABOVE
+    Phat = mean(ens.shift > q.shift)
     
-    q.shift.ref = p$q - (bhatc * zc.ref) - (bhatb * zb.ref)
-    
-    Phat.ref = mean(ens.shift > q.shift.ref)
-    Phat.diff = Phat - Phat.ref
-    
-  } else {
-    Phat.ref = NA
-    Phat.diff = NA
+    ##### Reference Level and Difference #####
+    if ( !is.na(zc.ref) & !is.na(zb.ref) ) {
+      
+      q.shift.ref = p$q - (bhatc * zc.ref) - (bhatb * zb.ref)
+      
+      Phat.ref = mean(ens.shift > q.shift.ref)
+      Phat.diff = Phat - Phat.ref
+      
+    } else {
+      Phat.ref = NA
+      Phat.diff = NA
+    }
   }
   
   if ( simple.output == TRUE ) return(Phat)
@@ -402,34 +429,34 @@ sim_data = function( k,
   # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
   # ~~~ MAYBE DON'T NEED TO REJECT 
   #while ( t2 == 0 ) {
-    #while ( (M <= 0) | (V == 0) ) {   
-    yi = c()
-    vyi = c()
-    Mi = c()
-    mu = c()
-    Zb = c()
-    Zc = c()
-    
+  #while ( (M <= 0) | (V == 0) ) {   
+  yi = c()
+  vyi = c()
+  Mi = c()
+  mu = c()
+  Zb = c()
+  Zc = c()
   
-    # simulate k studies
-    for (i in 1:k) {
-      study = sim_one_study( b0, # intercept
-                             bc, # effect of continuous moderator
-                             bb, # effect of binary moderator
-                             V = V, 
-                             muN = muN,
-                             minN = minN,
-                             sd.w = sd.w,
-                             true.effect.dist = true.effect.dist)
-      yi = c( yi, study$yi )  # append this study's ES to the list
-      vyi = c( vyi, study$vyi )  # append this study's variance to the list
-      Mi = c( Mi, study$Mi )  # append this study's mean to the list
-      mu = c( mu, study$mu )
-      Zc = c( Zc, study$Zc )
-      Zb = c( Zb, study$Zb )
-    }
   
-    
+  # simulate k studies
+  for (i in 1:k) {
+    study = sim_one_study( b0, # intercept
+                           bc, # effect of continuous moderator
+                           bb, # effect of binary moderator
+                           V = V, 
+                           muN = muN,
+                           minN = minN,
+                           sd.w = sd.w,
+                           true.effect.dist = true.effect.dist)
+    yi = c( yi, study$yi )  # append this study's ES to the list
+    vyi = c( vyi, study$vyi )  # append this study's variance to the list
+    Mi = c( Mi, study$Mi )  # append this study's mean to the list
+    mu = c( mu, study$mu )
+    Zc = c( Zc, study$Zc )
+    Zb = c( Zb, study$Zb )
+  }
+  
+  
   #   # fit RE model in order to record t2
   #   temp = rma.uni( yi=yi,
   #                   vi=vyi,

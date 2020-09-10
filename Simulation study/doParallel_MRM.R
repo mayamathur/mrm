@@ -14,17 +14,7 @@ rm( list = ls() )
 # are we running locally?
 run.local = FALSE
 
-#@ move these if you end up using them
-# @temp
-truncLogit <- function(p) {
-  p[p==0] = 0.001
-  p[p==1] = 0.999
-  log(p/(1-p))
-}
 
-expit = function(x) {
-  exp(x) / (1 + exp(x))
-}
 
 ######################################## FOR CLUSTER USE ########################################
 if (run.local == FALSE) {
@@ -147,27 +137,53 @@ if ( run.local == TRUE ) {
   setwd(code.dir)
   source("helper_MRM.R")
   
-  # just one scenario
-  # 14 MR
-  ( scen.params = make_scen_params( method = "boot.whole",  # this doesn't mean anything since we have only one "method"
-                                    calib.method = "MR",  # "MR" for one-stage or "DL" for two-stage
-                                    k = c(20),
+  # # just one scenario
+  # # 14 MR
+  # ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
+  #                                   calib.method = "MR bt both correct",
+  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+  #                                   k = c(20),
+  #                                   b0 = 0, # intercept
+  #                                   bc = 0.5, # effect of continuous moderator
+  #                                   bb = 1, # effect of binary moderator
+  # 
+  #                                   zc.star = 0.5,  # level of moderator to consider
+  #                                   zb.star = 1,
+  # 
+  #                                   zc.ref = 2,  # comparison levels of moderator to consider
+  #                                   zb.ref = 0,
+  # 
+  #                                   V = c( .01 ), # residual variance
+  #                                   muN = NA,  # just a placeholder; to be filled in later
+  #                                   minN = c(50),
+  #                                   sd.w = c(1),
+  #                                   tail = "above",
+  #                                   true.effect.dist = c("normal"),
+  #                                   TheoryP = c(0.05),
+  #                                   start.at = 1 ) )
+  
+  
+  # debug cluster error
+  ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
+                                    calib.method = "MR bt mn correct",
+                                    #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+                                    k = c(10),
                                     b0 = 0, # intercept
                                     bc = 0.5, # effect of continuous moderator
                                     bb = 1, # effect of binary moderator
-
+                                    
                                     zc.star = 0.5,  # level of moderator to consider
                                     zb.star = 1,
-
+                                    
                                     zc.ref = 2,  # comparison levels of moderator to consider
                                     zb.ref = 0,
-
+                                    
                                     V = c( .01 ), # residual variance
                                     muN = NA,  # just a placeholder; to be filled in later
                                     minN = c(50),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("normal"),
+                                    true.effect.dist = c("expo"),
                                     TheoryP = c(0.05),
                                     start.at = 1 ) )
   
@@ -213,8 +229,8 @@ if ( run.local == TRUE ) {
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 250
-  boot.reps = 500  # ~~ temp only
+  sim.reps = 500
+  boot.reps = 1000  # ~~ temp only
   
   
   library(foreach)
@@ -283,11 +299,12 @@ rep.time = system.time({
     # estimated mean at level "star" of effect modifiers
     EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
+    # benchmark: Phat using only real parameters, bypassing meta-regressive estimation
+    # bm
+    
     ##### Phat Difference #####
     # Phat difference for two levels of moderators
     PhatDiff = d.stats$Phat.diff
-    
-    # bm
     
     ##### Bootstrap #####
     # currently boot.whole is the only method
@@ -295,7 +312,6 @@ rep.time = system.time({
       
       Note = NA
       tryCatch({
-        
         
         # this is just the resampling part, not the CI estimation
         boot.res = boot( data = d, 
@@ -309,7 +325,10 @@ rep.time = system.time({
                                             zc.star = p$zc.star,
                                             zb.star = p$zb.star,
                                             zc.ref = p$zc.ref,
-                                            zb.ref = p$zb.ref)
+                                            zb.ref = p$zb.ref,
+                                            #calib.method = "MR",
+                                            calib.method = p$calib.method
+                                            )
                            
                            # only return the 3 stats of interest
                            c( as.numeric(b.stats["Phat"]),
@@ -357,9 +376,7 @@ rep.time = system.time({
         }, error = function(err){
           DiffBootCIs <<- c(NA, NA)
         } )
-        
 
-        
       # this part happens only if bootstrapping fails completely
         # not just CIs
       }, error = function(err){
@@ -375,55 +392,66 @@ rep.time = system.time({
         Note <<- paste("Resampling failed completely: ", err$message, sep="")
         #browser()
       } )  # end of the big tryCatch loop for the whole boot() call
-      
-      
-      # write results
-      rows = data.frame( 
-                      TrueMean = TrueMean,
-                      # estimated mean at level "star" of effect modifiers
-                      EstMean = EstMean, 
- 
-                      TrueVar = p$V,
-                      EstVar = d.stats$t2,
-                      EstVarBtMn = bt.means[4],
-                      
-                      # for "star" level of moderators
-                      Phat = d.stats$Phat,
-                      PhatLo = PhatBootCIs[1],
-                      PhatHi = PhatBootCIs[2],
-                      PhatBtMn = bt.means[1],
-                      PhatBtSD = bt.sds[1],
-                      LogitPhatBtMn = bt.means[5],
-                      
-                      # for reference level of moderators
-                      PhatRef = d.stats$Phat.ref, 
-                      PhatRefLo = PhatRefBootCIs[1],
-                      PhatRefHi = PhatRefBootCIs[2],
-                      PhatRefBtMn = bt.means[2],
-                      PhatRefBtSD = bt.sds[2],
- 
-                      # for the difference
-                      Diff = PhatDiff,
-                      DiffLo = DiffBootCIs[1],
-                      DiffHi = DiffBootCIs[2],
-                      DiffBtMn = bt.means[3],
-                      DiffBtSD = bt.sds[3],
-                      
-                      # method of calculating CI
-                      Method = p$method,
-                      
-                      # CI performance
-                      CoverPhat = covers(p$TheoryP, PhatBootCIs[1], PhatBootCIs[2]),
-                      CoverPhatRef = covers(p$TheoryP.ref, PhatRefBootCIs[1], PhatRefBootCIs[2]),
-                      CoverDiff = covers(p$TheoryDiff, DiffBootCIs[1], DiffBootCIs[2]),
-                      
-                      PhatCIWidth = PhatBootCIs[2] - PhatBootCIs[1],
-                      PhatRefCIWidth = PhatRefBootCIs[2] - PhatRefBootCIs[1],
-                      DiffCIWidth = DiffBootCIs[2] - DiffBootCIs[1],
-                      
-                      Note = Note)
- 
+  
     }  # end boot.whole
+    
+    
+    if ( p$method == "no.ci" ) {
+      n.ests = 5
+      Note = NA
+      PhatBootCIs = c(NA, NA)
+      PhatRefBootCIs = c(NA, NA)
+      DiffBootCIs = c(NA, NA)
+      bt.means = rep(NA, n.ests)
+      bt.sds = rep(NA, n.ests)
+    }
+    
+    
+    ##### Write Results #####
+    rows = data.frame( 
+      TrueMean = TrueMean,
+      # estimated mean at level "star" of effect modifiers
+      EstMean = EstMean, 
+      
+      TrueVar = p$V,
+      EstVar = d.stats$t2,
+      EstVarBtMn = bt.means[4],
+      
+      # for "star" level of moderators
+      Phat = d.stats$Phat,
+      PhatLo = PhatBootCIs[1],
+      PhatHi = PhatBootCIs[2],
+      PhatBtMn = bt.means[1],
+      PhatBtSD = bt.sds[1],
+      LogitPhatBtMn = bt.means[5],
+      
+      # for reference level of moderators
+      PhatRef = d.stats$Phat.ref, 
+      PhatRefLo = PhatRefBootCIs[1],
+      PhatRefHi = PhatRefBootCIs[2],
+      PhatRefBtMn = bt.means[2],
+      PhatRefBtSD = bt.sds[2],
+      
+      # for the difference
+      Diff = PhatDiff,
+      DiffLo = DiffBootCIs[1],
+      DiffHi = DiffBootCIs[2],
+      DiffBtMn = bt.means[3],
+      DiffBtSD = bt.sds[3],
+      
+      # method of calculating CI
+      Method = p$method,
+      
+      # CI performance
+      CoverPhat = covers(p$TheoryP, PhatBootCIs[1], PhatBootCIs[2]),
+      CoverPhatRef = covers(p$TheoryP.ref, PhatRefBootCIs[1], PhatRefBootCIs[2]),
+      CoverDiff = covers(p$TheoryDiff, DiffBootCIs[1], DiffBootCIs[2]),
+      
+      PhatCIWidth = PhatBootCIs[2] - PhatBootCIs[1],
+      PhatRefCIWidth = PhatRefBootCIs[2] - PhatRefBootCIs[1],
+      DiffCIWidth = DiffBootCIs[2] - DiffBootCIs[1],
+      
+      Note = Note)
     
     
     ##### Write Results #####
@@ -441,6 +469,12 @@ rep.time = system.time({
 
 head(rs)
 
+
+mean(rs$Phat)
+mean(rs$EstMean)
+mean(rs$EstVar)
+# now Phat always 0 when using MR boot corr?
+
 # running this one bad scenario while saving additional info
 #  mostly interested in the boot means here
 
@@ -448,58 +482,58 @@ head(rs)
 rep.time
 rs$rep.time = rep.time
 
-rs$PhatBtMn
-
-######### @TEMP ONLY
-
-# look at logit distribution
-ggplot( ) +
-  geom_histogram( data = rs,
-                  aes( x = truncLogit(Phat) ),
-                  alpha = 0.3 ) +
-  
-  # distribution of bootstrap means
-  geom_histogram( data = rs,
-                  aes( x = LogitPhatBtMn ),  # actual bootstrap mean
-                  alpha = 0.3,
-                  color = "blue") +
-  
-  # black line: truth
-  geom_vline( data = rs,
-              aes(xintercept = truncLogit(rs$TheoryP[1]) ),
-              lty = 2) +
-  
-  # red line: mean of Phats
-  geom_vline( data = rs,
-              aes(xintercept = mean( truncLogit(rs$Phat), na.rm = TRUE)),
-              color = "red",
-              lty = 2) +
-  theme_classic()
-
-
-# these should be very close, but not the same due to truncation of logit
-mean(rs$Phat)  # 0.0797 with t2==0 condition; 0.09 with the condition
-mean( expit( truncLogit(rs$Phat) ), na.rm = TRUE )
-
-# these are different because means are involved
-mean(rs$PhatBtMn, na.rm = TRUE)
-mean( expit(rs$LogitPhatBtMn), na.rm = TRUE )  # this one is closer to the truth
-
-# whoa...second one sucks! 
-mean( rs$Phat - (rs$PhatBtMn - rs$Phat), na.rm = TRUE ) # bias correction #1
-mean( expit( truncLogit(rs$Phat) - ( rs$LogitPhatBtMn - truncLogit(rs$Phat) ) ), na.rm = TRUE ) # bias correction #2
-
-
-rs$V[1]
-mean(rs$EstVar)
-hist(rs$EstVar)  # 0.01186237 with t2==0 condition
-# bias correction actually makes the variance even worse...
-mean( rs$EstVar - (rs$EstVarBtMn - rs$EstVar), na.rm=TRUE ) # bias correction
-
-# issue of discarding t2=0 sim iterates?
-# bm
-
-###### END OF TEMP
+# rs$PhatBtMn
+# 
+# ######### @TEMP ONLY
+# 
+# # look at logit distribution
+# ggplot( ) +
+#   geom_histogram( data = rs,
+#                   aes( x = truncLogit(Phat) ),
+#                   alpha = 0.3 ) +
+#   
+#   # distribution of bootstrap means
+#   geom_histogram( data = rs,
+#                   aes( x = LogitPhatBtMn ),  # actual bootstrap mean
+#                   alpha = 0.3,
+#                   color = "blue") +
+#   
+#   # black line: truth
+#   geom_vline( data = rs,
+#               aes(xintercept = truncLogit(rs$TheoryP[1]) ),
+#               lty = 2) +
+#   
+#   # red line: mean of Phats
+#   geom_vline( data = rs,
+#               aes(xintercept = mean( truncLogit(rs$Phat), na.rm = TRUE)),
+#               color = "red",
+#               lty = 2) +
+#   theme_classic()
+# 
+# 
+# # these should be very close, but not the same due to truncation of logit
+# mean(rs$Phat)  # 0.0797 with t2==0 condition; 0.09 with the condition
+# mean( expit( truncLogit(rs$Phat) ), na.rm = TRUE )
+# 
+# # these are different because means are involved
+# mean(rs$PhatBtMn, na.rm = TRUE)
+# mean( expit(rs$LogitPhatBtMn), na.rm = TRUE )  # this one is closer to the truth
+# 
+# # whoa...second one sucks! 
+# mean( rs$Phat - (rs$PhatBtMn - rs$Phat), na.rm = TRUE ) # bias correction #1
+# mean( expit( truncLogit(rs$Phat) - ( rs$LogitPhatBtMn - truncLogit(rs$Phat) ) ), na.rm = TRUE ) # bias correction #2
+# 
+# 
+# rs$V[1]
+# mean(rs$EstVar)
+# hist(rs$EstVar)  # 0.01186237 with t2==0 condition
+# # bias correction actually makes the variance even worse...
+# mean( rs$EstVar - (rs$EstVarBtMn - rs$EstVar), na.rm=TRUE ) # bias correction
+# 
+# # issue of discarding t2=0 sim iterates?
+# # bm
+# 
+# ###### END OF TEMP
 
 ########################### WRITE LONG RESULTS  ###########################
 if ( run.local == FALSE ) {
