@@ -86,6 +86,7 @@ cluster_bt = function(.dat, .clustervar){
 
 # includes the meta-regression part since we want to bootstrap that process
 # calib.method: "DL", "MR", "MR bt mn correct", "MR bt var correct", "MR bt both correct", "params" (latter bypasses meta-regressive parameter estimation and calibrates using the true parameters as a benchmark)
+# dat must have a column called "cluster" (could be 1 for each study if no clustering)
 prop_stronger_mr = function(dat,
                             zc.star,
                             zb.star,
@@ -115,7 +116,7 @@ prop_stronger_mr = function(dat,
     # fit meta-regression
     m = robu( yi ~ Zc + Zb, 
               data = dat, 
-              studynum = 1:nrow(dat),
+              studynum = cluster,
               var.eff.size = vyi )
     bhat0 = m$b.r[1]
     bhatc = m$b.r[2]
@@ -146,34 +147,38 @@ prop_stronger_mr = function(dat,
     ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
   }
   
-  #browser()
-  #bm
-
+  
   if ( calib.method %in% c("MR bt mn correct", "MR bt var correct", "MR bt both correct" ) ) {
     
     tryCatch({
       boot.res = my_boot( data = dat, 
-                       parallel = "multicore",
-                       R = boot.reps, 
-                       statistic = function(original, indices) {
-                         b = dat[indices,]
-                         
-                         tryCatch({
-                           mb = robu( yi ~ Zc + Zb, 
-                                      data = b, 
-                                      studynum = 1:nrow(b),
-                                      var.eff.size = vyi )
-                           bhat0.bt = mb$b.r[1]
-                           bhatc.bt = mb$b.r[2]
-                           bhatb.bt = mb$b.r[3]
-                           t2.bt = mb$mod_info$tau.sq
-                           
-                           return( c(bhat0.bt, bhatc.bt, bhatb.bt, t2.bt) )
-                         }, error = function(err){
-                           return( rep(NA, 4) )
-                         })
-                        
-                       } ) # end boot()
+                          parallel = "multicore",
+                          R = boot.reps, 
+                          statistic = function(original, indices) {
+                            
+                            if ( p$Vzeta == 0 ) {
+                              b = original[indices,]
+                            } else {
+                              b = cluster_bt( .dat = d, 
+                                              .clustervar = "cluster")
+                            }
+                            
+                            tryCatch({
+                              mb = robu( yi ~ Zc + Zb, 
+                                         data = b, 
+                                         studynum = cluster,
+                                         var.eff.size = vyi )
+                              bhat0.bt = mb$b.r[1]
+                              bhatc.bt = mb$b.r[2]
+                              bhatb.bt = mb$b.r[3]
+                              t2.bt = mb$mod_info$tau.sq
+                              
+                              return( c(bhat0.bt, bhatc.bt, bhatb.bt, t2.bt) )
+                            }, error = function(err){
+                              return( rep(NA, 4) )
+                            })
+                            
+                          } ) # end boot()
       
       bt.means = as.numeric( colMeans( boot.res$t, na.rm = TRUE ) )
       bt.bias = bt.means - c(bhat0, bhatc, bhatb, t2)
@@ -190,7 +195,6 @@ prop_stronger_mr = function(dat,
         t2 = t2 - bt.means[4]
       }
       
-      #browser()
       ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
       
     }, error = function(err){
@@ -204,12 +208,12 @@ prop_stronger_mr = function(dat,
       t2 <<- NA
       BtCorrectNote <<- err$message
       bootFail <<- TRUE
-
+      
     })
     
   }  # end of calib.method == "MR bt mn correct"
   
-
+  
   # ens.shift might not exist if we were trying to bootstrap-correct it but the bootstrapping failed
   if ( bootFail == FALSE ) {
     # q shifted to set moderators to 0
@@ -332,7 +336,12 @@ sim_one_study = function( b0, # intercept
   yi = ES$yi
   vyi = ES$vi
   
-  return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
+  return( data.frame( Mi,
+                      mu,
+                      Zc,  # study-level continuous moderator
+                      Zb,  # study-level continuous moderator
+                      yi,  # point estimate
+                      vyi ) )  # variance 
 }
 
 # with clustering
@@ -361,13 +370,18 @@ sim_one_study2 = function(b0, # intercept
   # sd.w = 1
   # true.effect.dist = "normal"
   
+  if( !true.effect.dist %in% c("normal", "expo") ) stop("True effect dist not recognized")
+  
   ##### Simulate Sample Size and Fixed Design Matrix for This Study #####
   # simulate total N for this study
   N = round( runif( n = 1, min = minN, max = minN + 2*( muN - minN ) ) ) # draw from uniform centered on muN
   
-  # simulate study-level moderators
+  # simulate study-level moderators (each a scalar)
   Zc = rnorm( n = 1, mean = 0, sd = 1)
   Zb = rbinom( n = 1, size = 1, prob = 0.5)
+  
+  # bm
+  #browser()
   
   # mean (i.e., linear predictor) conditional on the moderators and cluster membership
   mu = b0 + zeta1 + bc*Zc + bb*Zb
@@ -409,7 +423,13 @@ sim_one_study2 = function(b0, # intercept
   yi = ES$yi
   vyi = ES$vi
   
-  return( data.frame( Mi, mu, zeta1, Zc, Zb, yi, vyi ) )
+  return( data.frame( Mi, # study's true effect size; if within-cluster heterogeneity is zero, will be equal to mu
+                      mu, # study's linear predictor conditional on the moderators and cluster membership
+                      zeta1,
+                      Zc,
+                      Zb,
+                      yi,
+                      vyi ) )
 }
 
 # calculate I^2 from t^2 and N
@@ -487,13 +507,18 @@ sim_data = function( k,
 
 
 # with clustering
-# updated 2020-6-5
+# notes:
+# - number of actually generated clusters could be less than m
+#  because we randomly draw from the m clusters with replacement (to allow for k not divisible by m)
+# - if bc = bb = 0 (i.e., moderators have no effect), then mu will be static within clusters and equal to zeta1 + b0
+# see helper_MRM_sanity_checks.R for extensive sanity checks of this function
+
 sim_data2 = function( k, # total number of studies
                       m = k, # number of clusters (m=k implies no clustering)
                       b0, # intercept
                       bc, # effect of continuous moderator
                       bb, # effect of binary moderator 
-                      V,
+                      V,  # TOTAL residual heterogeneity after conditioning on moderators (including within- and between-cluster variance)
                       Vzeta = 0, # between-cluster variance (must be less than V)
                       muN, 
                       minN,
@@ -502,97 +527,62 @@ sim_data2 = function( k, # total number of studies
   
   # # @test for m=k case
   # # TEST ONLY
-  # k = 43
-  # m = 43
-  # b0 = 0.5 # intercept
-  # bc = 0.5 # effect of continuous moderator
-  # bb = 1 # effect of binary moderator
+  # k = 6
+  # m = 2
+  # b0 = 0 # intercept
+  # bc = 0 # effect of continuous moderator
+  # bb = 0 # effect of binary moderator
   # V = .5
   # Vzeta = 0.25
   # muN = 100
   # minN = 50
   # sd.w = 1
-  # true.effect.dist = "normal"
-  
-  
-  # initialize estimated ES to values that will enter the while-loop
-  t2 = 0  
+  # true.effect.dist = "expo"
+  # 
   
   if ( Vzeta > V ) stop( "Vzeta must be less than or equal to V")
   
-  # avoid t2 = 0 samples
-  # ~~~~~~ NOTE: NEED TO BE CAREFUL CHOOSING PARAMETERS TO AVOID SYSTEMATICALLY
-  # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
-  # ~~~ MAYBE DON'T NEED TO REJECT THESE
-  while ( t2 == 0 ) {
-    #while ( (M <= 0) | (V == 0) ) {   
-    yi = c()
-    vyi = c()
-    Mi = c()
-    mu = c()
-    Zb = c()
-    Zc = c()
-    
-    # randomly assign studies to clusters
-    # @different from SAPB method of fixing number of studies in each cluster
-    # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced
-    cluster = sample( 1:m, size = k, replace = TRUE )
-    
-    # generate cluster random intercepts (zeta)
-    # these are normal even when true effect dist is exponential
-    zeta1 = rnorm( n = m, mean = 0, sd = sqrt( Vzeta ) )  # one entry per cluster
-    zeta1i = zeta1[cluster]  # one entry per study
-    
-    # simulate k studies
-    for (i in 1:k) {
-      study = sim_one_study2( b0, # intercept
-                              bc, # effect of continuous moderator
-                              bb, # effect of binary moderator
-                              V = V, 
-                              Vzeta = Vzeta, 
-                              zeta1 = zeta1i[k], # cluster random intercept for this study;s cluster
-                              muN = muN,
-                              minN = minN,
-                              sd.w = sd.w,
-                              true.effect.dist = true.effect.dist)
-      yi = c( yi, study$yi )  # append this study's ES to the list
-      vyi = c( vyi, study$vyi )  # append this study's variance to the list
-      Mi = c( Mi, study$Mi )  # append this study's mean to the list
-      mu = c( mu, study$mu )
-      Zc = c( Zc, study$Zc )
-      Zb = c( Zb, study$Zb )
-      # @ record clusters and anything else along those lines
-    }
-    
-    # fit RE model in order to record t2
-    # @ does this need updating for clusters?
-    # @replace with robumeta
-    temp = rma.uni( yi=yi,
-                    vi=vyi,
-                    measure="SMD",
-                    knha = TRUE,
-                    method = "REML" )
-    t2 = temp$tau2
-  } # end "while(t2==0)"
   
-  return( data.frame( Mi, zeta1i, mu, Zc, Zb, yi, vyi ) )
+  # randomly assign studies to clusters
+  # @different from SAPB method of fixing number of studies in each cluster
+  # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced
+  if (m < k) cluster = sample( 1:m, size = k, replace = TRUE )
+  if (m == k) cluster = 1:k  # each in its own cluster
+  if (m > k) stop("m must be <= k")
+  
+  cluster = sort(cluster)
+  
+  # generate cluster random intercepts (zeta)
+  # these are normal even when true effect dist is exponential
+  zeta1 = rnorm( n = m, mean = 0, sd = sqrt( Vzeta ) )  # one entry per cluster
+  zeta1i = zeta1[cluster]  # one entry per study
+  
+  
+  # simulate k studies
+  for (i in 1:k) {
+    study = sim_one_study2( b0, # intercept
+                            bc, # effect of continuous moderator
+                            bb, # effect of binary moderator
+                            V = V, 
+                            Vzeta = Vzeta, 
+                            zeta1 = zeta1i[i], # cluster random intercept for this study;s cluster
+                            muN = muN,
+                            minN = minN,
+                            sd.w = sd.w,
+                            true.effect.dist = true.effect.dist)
+    
+    if ( i == 1 ) d = study else d = rbind( d, study )
+  }
+  
+  # add cluster indicator
+  d = d %>% mutate( cluster, .before = 1) 
+  
+  # ICC of study population effects within clusters (will be static for dataset)
+  d$icc = ICCbareF( x = as.factor(d$cluster), 
+                    y = d$Mi )  
+  
+  return(d)
 }
-
-# # test
-# d = sim_data2(k = 1500,
-#               m = 50,
-#               b0 = 0.5, # intercept
-#               bc = 0.5, # effect of continuous moderator
-#               bb = 1, # effect of binary moderator
-#               V = .5,
-#               Vzeta = 0.25,
-#               muN = 100,
-#               minN = 50,
-#               sd.w = 1,
-#               true.effect.dist = "expo")
-# var(d$zeta1i) # should be close to Vzeta (need a lot of clusters for this to work)
-# var(d$mu)  # should be close to V
-# var(d$Mi)  # should be close to V - Vzeta
 
 
 
@@ -613,6 +603,7 @@ covers = function( truth, lo, hi ) {
 make_scen_params = function( method, 
                              calib.method,
                              k,
+                             m,
                              b0, # intercept
                              bc, # effect of continuous moderator
                              bb, # effect of binary moderator
@@ -623,6 +614,7 @@ make_scen_params = function( method,
                              zb.ref,
                              
                              V,  # variance of true effects
+                             Vzeta,
                              muN, # just a placeholder; to be filled in later
                              minN,
                              sd.w,
@@ -637,6 +629,7 @@ make_scen_params = function( method,
   scen.params = expand.grid( method = method,
                              calib.method = calib.method,
                              k = k,
+                             m = m,
                              b0 = b0, 
                              bc = bc, 
                              bb = bb, 
@@ -645,6 +638,7 @@ make_scen_params = function( method,
                              zc.ref = zc.ref,
                              zb.ref = zb.ref,
                              V = V,  # variance of true effects
+                             Vzeta = Vzeta,
                              muN = muN, # just a placeholder; to be filled in later
                              minN = minN,
                              sd.w = sd.w,
@@ -744,7 +738,7 @@ calculate_theory_p = function(true.effect.dist,
   else stop("true.effect.dist not recognized.")
 }
 
-# # bm
+
 # # sanity check: with a single binary covariate
 # q = .5
 # b0 = 0.5

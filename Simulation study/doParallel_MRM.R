@@ -18,27 +18,27 @@ run.local = FALSE
 
 ######################################## FOR CLUSTER USE ########################################
 if (run.local == FALSE) {
-
+  
   # load command line arguments
   args = commandArgs(trailingOnly = TRUE)
   jobname = args[1]
   scen = args[2]  # this will be a letter
-
+  
   # get scen parameters
   setwd("/home/groups/manishad/MRM")
   scen.params = read.csv( "scen_params.csv" )
   p = scen.params[ scen.params$scen.name == scen, ]
-
+  
   print(p)
-
-
+  
+  
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
   sim.reps = 100
   # was 5,000 in NPPhat
   boot.reps = 5000
-
-
+  
+  
   # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
   library(crayon, lib.loc = "/home/groups/manishad/Rpackages/")
   library(dplyr, lib.loc = "/home/groups/manishad/Rpackages/")
@@ -52,17 +52,19 @@ if (run.local == FALSE) {
   library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
   library(fansi, lib.loc = "/home/groups/manishad/Rpackages/")
   library(MetaUtility, lib.loc = "/home/groups/manishad/Rpackages/")
-
+  library(ICC, lib.loc = "/home/groups/manishad/Rpackages/")
+  
   # for use in ml load R
   # install.packages( c("metRology"), lib = "/home/groups/manishad/Rpackages/" )
-
+  
   path = "/home/groups/manishad/MRM"
   setwd(path)
+  source("bootfuns.R")
   source("helper_MRM.R")
-
+  
   # set the number of cores
   registerDoParallel(cores=16)
-
+  
   # ##### Write Blank CSV File #####
   # # this records that the rep started in case there is a problem with the bootstrapping
   # placeholder = data.frame( TrueMean = NA,
@@ -116,7 +118,7 @@ if (run.local == FALSE) {
 if ( run.local == TRUE ) {
   rm(list=ls())
   
-
+  
   library(crayon)
   library(dplyr)
   library(foreach)
@@ -129,13 +131,15 @@ if ( run.local == TRUE ) {
   library(metRology)
   library(fansi)
   library(MetaUtility)
-  
+  library(ICC)
   
   
   # helper fns
   code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
   setwd(code.dir)
+  source("bootfuns.R")
   source("helper_MRM.R")
+  
   
   # # just one scenario
   # # 14 MR
@@ -165,9 +169,11 @@ if ( run.local == TRUE ) {
   
   # debug cluster error
   ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
-                                    calib.method = "MR bt mn correct",
+                                    calib.method = "MR",
                                     #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-                                    k = c(10),
+                                    k = c(100),
+                                    m = 10, # @NEW,
+                                    
                                     b0 = 0, # intercept
                                     bc = 0.5, # effect of continuous moderator
                                     bb = 1, # effect of binary moderator
@@ -178,7 +184,9 @@ if ( run.local == TRUE ) {
                                     zc.ref = 2,  # comparison levels of moderator to consider
                                     zb.ref = 0,
                                     
-                                    V = c( .01 ), # residual variance
+                                    V = c( .2 ), # residual variance
+                                    Vzeta = .15, # between-cluster variance (@NEW)
+                                    
                                     muN = NA,  # just a placeholder; to be filled in later
                                     minN = c(50),
                                     sd.w = c(1),
@@ -277,16 +285,28 @@ rep.time = system.time({
     TrueMean = p$b0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
     ##### Simulate Dataset #####
-    # @for clustering, will need to use sim_data2
-    d = sim_data( k = p$k, 
-                  b0 = p$b0, # intercept
-                  bc = p$bc, # effect of continuous moderator
-                  bb = p$bb, # effect of binary moderator 
-                  V = p$V,
-                  muN = p$muN, 
-                  minN = p$minN,
-                  sd.w = p$sd.w,
-                  true.effect.dist = p$true.effect.dist )
+    # d = sim_data( k = p$k, 
+    #               b0 = p$b0, # intercept
+    #               bc = p$bc, # effect of continuous moderator
+    #               bb = p$bb, # effect of binary moderator 
+    #               V = p$V,
+    #               muN = p$muN, 
+    #               minN = p$minN,
+    #               sd.w = p$sd.w,
+    #               true.effect.dist = p$true.effect.dist )
+    
+    # @NEW
+    d = sim_data2( k = p$k, 
+                   m = p$m,
+                   b0 = p$b0, # intercept
+                   bc = p$bc, # effect of continuous moderator
+                   bb = p$bb, # effect of binary moderator 
+                   V = p$V,
+                   Vzeta = p$Vzeta,
+                   muN = p$muN, 
+                   minN = p$minN,
+                   sd.w = p$sd.w,
+                   true.effect.dist = p$true.effect.dist )
     
     ##### Get Meta-Regressive Phat for This Dataset #####
     d.stats = prop_stronger_mr(d,
@@ -299,8 +319,6 @@ rep.time = system.time({
     # estimated mean at level "star" of effect modifiers
     EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
     
-    # benchmark: Phat using only real parameters, bypassing meta-regressive estimation
-    # bm
     
     ##### Phat Difference #####
     # Phat difference for two levels of moderators
@@ -314,30 +332,44 @@ rep.time = system.time({
       tryCatch({
         
         # this is just the resampling part, not the CI estimation
-        boot.res = boot( data = d, 
-                         parallel = "multicore",
-                         R = boot.reps, 
-                         statistic = function(original, indices) {
-                           # @ for clustering, need to use cluster_bt here
-                           b = original[indices,]
-                           
-                           b.stats = prop_stronger_mr(dat = b,
-                                            zc.star = p$zc.star,
-                                            zb.star = p$zb.star,
-                                            zc.ref = p$zc.ref,
-                                            zb.ref = p$zb.ref,
-                                            #calib.method = "MR",
-                                            calib.method = p$calib.method
-                                            )
-                           
-                           # only return the 3 stats of interest
-                           c( as.numeric(b.stats["Phat"]),
-                              as.numeric(b.stats["Phat.ref"]),
-                              as.numeric(b.stats["Phat.diff"]),
-                              as.numeric(b.stats["t2"]),
-                              truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
-                              )
-                         } )
+        boot.res = my_boot( data = d, 
+                            parallel = "multicore",
+                            R = boot.reps, 
+                            statistic = function(original, indices) {
+                              # @ for clustering, need to use cluster_bt here
+                              
+                              # @NEW
+                              # bm
+                              # either use regular bootstrap or cluster bootstrap as appropriate
+                              if ( p$Vzeta == 0 ) {
+                                b = original[indices,]
+                              } else {
+                                b = cluster_bt( .dat = d, 
+                                                .clustervar = "cluster")
+                              }
+                              
+                              tryCatch({
+                                b.stats = prop_stronger_mr(dat = b,
+                                                           zc.star = p$zc.star,
+                                                           zb.star = p$zb.star,
+                                                           zc.ref = p$zc.ref,
+                                                           zb.ref = p$zb.ref,
+                                                           #calib.method = "MR",
+                                                           calib.method = p$calib.method
+                                )
+                                
+                                # only return the 3 stats of interest
+                                c( as.numeric(b.stats["Phat"]),
+                                   as.numeric(b.stats["Phat.ref"]),
+                                   as.numeric(b.stats["Phat.diff"]),
+                                   as.numeric(b.stats["t2"]),
+                                   truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
+                                )
+                              }, error = function(err){
+                                rep(NA, 5)
+                              })
+                              
+                            } )
         boot.res
         # for debugging
         #head( boot.res$t )
@@ -349,8 +381,8 @@ rep.time = system.time({
         
         
         # boot diagnostics
-        bt.means = as.numeric( colMeans(boot.res$t) )
-        bt.sds = apply( boot.res$t, 2, sd )
+        bt.means = as.numeric( colMeans(boot.res$t, na.rm = TRUE) )
+        bt.sds = apply( boot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
         
         # get CIs for each estimand individually in case some work and others don't
         tryCatch({
@@ -361,7 +393,7 @@ rep.time = system.time({
           PhatBootCIs <<- c(NA, NA)
         } )
         
-
+        
         tryCatch({
           CI = boot.ci(boot.res, type = "bca", index = 2)
           PhatRefBootCIs = c( CI[[4]][4], CI[[4]][5] )
@@ -376,8 +408,15 @@ rep.time = system.time({
         }, error = function(err){
           DiffBootCIs <<- c(NA, NA)
         } )
-
-      # this part happens only if bootstrapping fails completely
+        
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 5)
+          truncLogitBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          truncLogitBootCIs <<- c(NA, NA)
+        } )
+        
+        # this part happens only if bootstrapping fails completely
         # not just CIs
       }, error = function(err){
         # one list item for each stat of interest (3),
@@ -386,13 +425,14 @@ rep.time = system.time({
         PhatBootCIs <<- c(NA, NA)
         PhatRefBootCIs <<- c(NA, NA)
         DiffBootCIs <<- c(NA, NA)
+        truncLogitBootCIs <<- c(NA, NA)
         bt.means <<- rep(NA, n.ests)
         bt.sds <<- rep(NA, n.ests)
         #boot.median <<- NA
         Note <<- paste("Resampling failed completely: ", err$message, sep="")
         #browser()
       } )  # end of the big tryCatch loop for the whole boot() call
-  
+      
     }  # end boot.whole
     
     
@@ -402,6 +442,7 @@ rep.time = system.time({
       PhatBootCIs = c(NA, NA)
       PhatRefBootCIs = c(NA, NA)
       DiffBootCIs = c(NA, NA)
+      truncLogitBootCIs <<- c(NA, NA)
       bt.means = rep(NA, n.ests)
       bt.sds = rep(NA, n.ests)
     }
@@ -417,13 +458,19 @@ rep.time = system.time({
       EstVar = d.stats$t2,
       EstVarBtMn = bt.means[4],
       
+      # ICC of population effects within clusters
+      ICCpop = d$icc[1],
+      
       # for "star" level of moderators
       Phat = d.stats$Phat,
       PhatLo = PhatBootCIs[1],
       PhatHi = PhatBootCIs[2],
       PhatBtMn = bt.means[1],
       PhatBtSD = bt.sds[1],
+      
       LogitPhatBtMn = bt.means[5],
+      truncLogitLo = truncLogitBootCIs[1],
+      truncLogitHi = truncLogitBootCIs[2],
       
       # for reference level of moderators
       PhatRef = d.stats$Phat.ref, 
@@ -470,10 +517,17 @@ rep.time = system.time({
 head(rs)
 
 
-mean(rs$Phat)
-mean(rs$EstMean)
-mean(rs$EstVar)
-# now Phat always 0 when using MR boot corr?
+# uncorrected Phat and 2 bias-corrected versions
+mean(rs$Phat); rs$TheoryP[1]  
+mean( rs$Phat - (rs$PhatBtMn - rs$Phat) )
+expit( mean( truncLogit(rs$Phat) - (rs$LogitPhatBtMn - truncLogit(rs$Phat) ) ) )
+
+mean(rs$EstVar); rs$V[1]
+mean( rs$EstVar - (rs$EstVarBtMn - rs$EstVar) )
+
+mean(rs$Diff)
+mean(rs$EstMean); rs$TrueMean[1]
+mean(rs$EstVar); rs$V[1]
 
 # running this one bad scenario while saving additional info
 #  mostly interested in the boot means here
