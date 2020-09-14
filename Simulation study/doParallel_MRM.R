@@ -53,6 +53,7 @@ if (run.local == FALSE) {
   library(fansi, lib.loc = "/home/groups/manishad/Rpackages/")
   library(MetaUtility, lib.loc = "/home/groups/manishad/Rpackages/")
   library(ICC, lib.loc = "/home/groups/manishad/Rpackages/")
+  library(cfdecomp, lib.loc = "/home/groups/manishad/Rpackages/")
   
   # for use in ml load R
   # install.packages( c("metRology"), lib = "/home/groups/manishad/Rpackages/" )
@@ -132,7 +133,7 @@ if ( run.local == TRUE ) {
   library(fansi)
   library(MetaUtility)
   library(ICC)
-  
+  library(cfdecomp)
   
   # helper fns
   code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
@@ -168,15 +169,16 @@ if ( run.local == TRUE ) {
   
   
   # debug cluster error
-  ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
+  ( scen.params = make_scen_params( method = "boot.whole",  # "boot.whole", "no.ci"
                                     calib.method = "MR",
                                     #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
                                     k = c(100),
-                                    m = 10, # @NEW,
+                                    m = 50, # @NEW,
+                                    #m = 100,
                                     
                                     b0 = 0, # intercept
-                                    bc = 0.5, # effect of continuous moderator
-                                    bb = 1, # effect of binary moderator
+                                    bc = 0, # effect of continuous moderator
+                                    bb = 0, # effect of binary moderator
                                     
                                     zc.star = 0.5,  # level of moderator to consider
                                     zb.star = 1,
@@ -185,14 +187,15 @@ if ( run.local == TRUE ) {
                                     zb.ref = 0,
                                     
                                     V = c( .2 ), # residual variance
-                                    Vzeta = .15, # between-cluster variance (@NEW)
+                                    Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
+                                    #Vzeta = 0,
                                     
                                     muN = NA,  # just a placeholder; to be filled in later
                                     minN = c(50),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("expo"),
-                                    TheoryP = c(0.05),
+                                    true.effect.dist = c("normal"),
+                                    TheoryP = c(0.2),
                                     start.at = 1 ) )
   
   
@@ -237,7 +240,7 @@ if ( run.local == TRUE ) {
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 500
+  sim.reps = 100
   boot.reps = 1000  # ~~ temp only
   
   
@@ -269,7 +272,7 @@ if ( run.local == TRUE ) {
 
 
 
-########################### RUN SIMULATION (CLUSTER) ###########################
+########################### RUN SIMULATION ###########################
 
 rep.time = system.time({
   rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
@@ -325,7 +328,6 @@ rep.time = system.time({
     PhatDiff = d.stats$Phat.diff
     
     ##### Bootstrap #####
-    # currently boot.whole is the only method
     if ( p$method == "boot.whole" ) {
       
       Note = NA
@@ -344,8 +346,10 @@ rep.time = system.time({
                               if ( p$Vzeta == 0 ) {
                                 b = original[indices,]
                               } else {
-                                b = cluster_bt( .dat = d, 
-                                                .clustervar = "cluster")
+                                b = cluster.resample(data = original,
+                                                     cluster.name = "cluster",
+                                                     # number of CLUSTERS to resample
+                                                     size = length( unique(original$cluster) ) )
                               }
                               
                               tryCatch({
@@ -460,6 +464,8 @@ rep.time = system.time({
       
       # ICC of population effects within clusters
       ICCpop = d$icc[1],
+      # number of clusters (could be <m for reasons described in helper code)
+      nClusters = length(unique(d$cluster)),
       
       # for "star" level of moderators
       Phat = d.stats$Phat,
@@ -515,6 +521,15 @@ rep.time = system.time({
 
 
 head(rs)
+table(is.na(rs$PhatLo))
+mean(rs$CoverPhat, na.rm = TRUE)  #**92% without clusters; 54% with clusters
+mean(rs$Phat, na.rm = TRUE)  # unbiased even with clusters
+mean(rs$PhatBtSD, na.rm = TRUE); sd(rs$Phat, na.rm = TRUE)  # the boot SD is an underestimate when there are clusters
+
+# bm: want to make sure CIs are reasonable when generating clusters
+#  in scenarios that work well without clustering
+
+# first running a "safe" scenario
 
 
 # uncorrected Phat and 2 bias-corrected versions

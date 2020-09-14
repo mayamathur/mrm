@@ -155,3 +155,71 @@ my_ggsave("calib_plot.pdf",
           width = 8,
           height = 1)
 
+
+
+##### RESURRECTED FROM BEFORE:
+
+# ################################## MATHUR ################################## 
+# 
+# ##### Descriptives #####
+# setwd(prepped.data.dir)
+# dm = read.csv("mathur_data_prepped.csv")
+# 
+# qual.vars = c("qual.y.prox2",
+#               "low.miss",
+#               "qual.exch2",
+#               "qual.gen2",
+#               "qual.sdb2",
+#               "qual.prereg2",
+#               "qual.public.data2")
+# 
+# # proportion high on each quality variable
+# colMeans( dm %>% select(qual.vars) )
+# 
+# # sum of ROB metrics for each study (max 4 of 7)
+# apply( dm %>% select(qual.vars), 1, sum )  
+# 
+# 
+# ##### Fit Meta-Regression #####
+# 
+# # BE CAREFUL ABOUT REORDERING OR ADDING VARIABLES HERE - WILL AFFECT BETA'Z BELOW
+# m = robu( logRR ~ #randomized +  # too collinear with exch
+#              qual.y.prox2 +
+#              low.miss +
+#              qual.exch2 +
+#              qual.gen2 +
+#              qual.sdb2 +
+#              qual.prereg2 +
+#              qual.public.data2,
+#           data = dm, 
+#           studynum = authoryear,  # ~~~ clustering
+#           var.eff.size = varlogRR )
+# 
+# t2 = m$mod_info$tau.sq
+# 
+# # linear predictor for being low on all ROB criteria
+# # ~~~ report this somewhere?
+# exp( sum(m$b.r[2:7]) )
+# 
+# # bm :)
+# 
+# ##### Consider a Hypothetical Study with Optimal Risks of Bias #####
+# # design matrix of only the moderators
+# Z = as.matrix( dm %>% select(qual.vars) )
+# head(Z)
+# 
+# # confirm same ordering
+# colnames(Z); m
+# 
+# # moderator coefficients
+# # exclude intercept
+# bhat = as.matrix( m$b.r[ 2:( length(qual.vars) + 1 ) ], ncol = 1 )
+# 
+# dm$linpredZ = Z %*% bhat
+# 
+# 
+# ##### Try Shifting the yis Themselves to Use Existing Package and Sims #####
+# dm$yi.shift = dm$logRR - dm$linpredZ  # shifted to have moderators set to 0
+# ens.shift = MetaUtility::calib_ests(yi = dm$yi.shift,
+#                                     sei = sqrt(dm$varlogRR) )
+# 

@@ -65,21 +65,56 @@ my_summarise = function(dat){
 
 
 
-# draw cluster bootstrap sample
-# assumes cluster variable is named "cluster"
-# this is Davison & Hinkley's recommendation 
-#  see section 3.8 in "Further Topics" chapter
-cluster_bt = function(.dat, .clustervar){
-  
-  .dat$cluster = .dat[[.clustervar]]
-  
-  # resample clusters, leaving observations intact
-  #https://stats.stackexchange.com/questions/46821/bootstrapping-hierarchical-multilevel-data-resampling-clusters
-  # see answer by dash2
-  cluster.ids = data.frame(cluster = sample(.dat$cluster, replace = TRUE))
-  datb = .dat %>% inner_join(cluster.ids, by = 'cluster')
-  return(datb)
-}
+# # draw cluster bootstrap sample
+# # assumes cluster variable is named "cluster"
+# # this is Davison & Hinkley's recommendation 
+# #  see section 3.8 in "Further Topics" chapter
+# cluster_bt = function(.dat, .clustervar){
+#   
+#   # test only
+#   .dat = d
+#   .clustervar = "cluster"
+#   
+#   .dat$cluster = .dat[[.clustervar]]
+#   clusters = unique(.dat$cluster)
+#   
+#   browser()
+#   
+#   # resample clusters, keeping the total number of clusters the same and leaving observations intact within each cluster
+#   #https://stats.stackexchange.com/questions/46821/bootstrapping-hierarchical-multilevel-data-resampling-clusters
+#   # see answer by dash2
+#   # cluster.ids = data.frame(cluster = sample( clusters, size = length(clusters), replace = TRUE))
+#   cluster.ids = sample(clusters, size = length(clusters), replace=TRUE)
+# 
+#   # data frame of clusters
+#   cldf = data.frame( cluster = cluster.ids )
+#   datb = merge( cldf, .dat, all.x = TRUE, by = "cluster")
+# 
+#   return(datb)
+# }
+
+# # sanity check
+# # after generating data from sim_data2
+# d = sim_data2( k = 10, 
+#                m = 3,
+#                b0 = 0, # intercept
+#                bc = 0, # effect of continuous moderator
+#                bb = 0, # effect of binary moderator 
+#                V = .25,
+#                Vzeta = .2,
+#                muN = 50, 
+#                minN = 50,
+#                sd.w = 1,
+#                true.effect.dist = "normal" )
+# 
+# library(cfdecomp)
+# b = cluster.resample(data = d,
+#                      cluster.name = "cluster",
+#                      # number of CLUSTERS to resample
+#                      size = length( unique(d$cluster) ) )
+# 
+# nrow(d); table(d$cluster)
+# nrow(b); table(b$cluster)
 
 
 ########################### FN: PHAT FOR META-REGRESSION ###########################
@@ -159,8 +194,11 @@ prop_stronger_mr = function(dat,
                             if ( p$Vzeta == 0 ) {
                               b = original[indices,]
                             } else {
-                              b = cluster_bt( .dat = d, 
-                                              .clustervar = "cluster")
+                        
+                              b = cluster.resample(data = original,
+                                                   cluster.name = "cluster",
+                                                   # number of CLUSTERS to resample
+                                                   size = length( unique(original$cluster) ) )
                             }
                             
                             tryCatch({
