@@ -1,119 +1,8 @@
 
-# audited 2020-6-17
+# Why does cluster.resample perform worse than regular bootstrap when 
+#  m=k (no clusters)? Shouldn't the resampling algorithms be exactly equivalent in that case?
 
-
-# to update
-# can't rely on bootstrap notes for bca.success anymore because 
-#   now that only happens when the resampling fails, not the CIs
-#   should use NAs in each respective CI instead
-
-
-# because Sherlock 2.0 restores previous workspace
-rm( list = ls() )
-
-# are we running locally?
-run.local = FALSE
-
-
-
-######################################## FOR CLUSTER USE ########################################
-if (run.local == FALSE) {
-  
-  # load command line arguments
-  args = commandArgs(trailingOnly = TRUE)
-  jobname = args[1]
-  scen = args[2]  # this will be a letter
-  
-  # get scen parameters
-  setwd("/home/groups/manishad/MRM")
-  scen.params = read.csv( "scen_params.csv" )
-  p = scen.params[ scen.params$scen.name == scen, ]
-  
-  print(p)
-  
-  
-  # simulation reps to run within this job
-  # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 100
-  # was 5,000 in NPPhat
-  boot.reps = 5000
-  
-  
-  # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
-  library(crayon, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(dplyr, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(foreach, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(doParallel, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(boot, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(metafor, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(robumeta, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(data.table, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(purrr, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(fansi, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(MetaUtility, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(ICC, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(cfdecomp, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(tidyr, lib.loc = "/home/groups/manishad/Rpackages/")
-  
-  # for use in ml load R
-  # install.packages( c("metRology"), lib = "/home/groups/manishad/Rpackages/" )
-  
-  path = "/home/groups/manishad/MRM"
-  setwd(path)
-  source("bootfuns.R")
-  source("helper_MRM.R")
-  
-  # set the number of cores
-  registerDoParallel(cores=16)
-  
-  # ##### Write Blank CSV File #####
-  # # this records that the rep started in case there is a problem with the bootstrapping
-  # placeholder = data.frame( TrueMean = NA,
-  #                           EstMean = NA, 
-  #                           
-  #                           TrueVar = NA,
-  #                           EstVar = NA,
-  # 
-  #                           # for "star" level of moderators
-  #                           Phat = NA,
-  #                           PhatLo = NA,
-  #                           PhatHi =  NA,
-  #                           
-  #                           # for reference level of moderators
-  #                           PhatRef =  NA,
-  #                           PhatRefLo =  NA,
-  #                           PhatRefHi =  NA,
-  #                    
-  #                           # for the difference
-  #                           #TheoryDiff = p$TheoryDiff, 
-  #                           Diff =  NA,
-  #                           DiffLo =  NA,
-  #                           DiffHi =  NA,
-  #                           
-  #                           # method of calculating CI: exponentiate logit or not?
-  #                           Method =  NA,
-  #                           
-  #                           # CI performance
-  #                           CoverPhat =  NA,
-  #                           CoverPhatRef =  NA,
-  #                           CoverDiff =  NA,
-  #                           
-  #                           PhatCIWidth =  NA,
-  #                           PhatRefCIWidth =  NA,
-  #                           DiffCIWidth =  NA,
-  #                           
-  #                           Note = "Sim failure")
-  # 
-  # 
-  # placeholder$scen.name = scen
-  # placeholder = merge( placeholder, scen.params, by = "scen.name" )
-  # 
-  # setwd("/home/groups/manishad/MRM/sim_results/long")
-  # write.csv( placeholder, paste( "long_results", jobname, ".csv", sep="_" ) )
-  # # this will be overwritten if the rep finished successfully
-}
-
+# THIS VERSION WORKS!!! (with the cluster bootstrapped via nest/unnest)
 
 
 ######################################## FOR LOCAL USE ########################################
@@ -143,35 +32,9 @@ if ( run.local == TRUE ) {
   source("bootfuns.R")
   source("helper_MRM.R")
   
-  
-  # # just one scenario
-  # # 14 MR
-  # ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
-  #                                   calib.method = "MR bt both correct",
-  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-  #                                   k = c(20),
-  #                                   b0 = 0, # intercept
-  #                                   bc = 0.5, # effect of continuous moderator
-  #                                   bb = 1, # effect of binary moderator
-  # 
-  #                                   zc.star = 0.5,  # level of moderator to consider
-  #                                   zb.star = 1,
-  # 
-  #                                   zc.ref = 2,  # comparison levels of moderator to consider
-  #                                   zb.ref = 0,
-  # 
-  #                                   V = c( .01 ), # residual variance
-  #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50),
-  #                                   sd.w = c(1),
-  #                                   tail = "above",
-  #                                   true.effect.dist = c("normal"),
-  #                                   TheoryP = c(0.05),
-  #                                   start.at = 1 ) )
-  
-  
-  # debug cluster error
-  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.reg", "bt.cl", "no.ci"
+ 
+  # same scenario in screenshot
+  ( scen.params = make_scen_params( method = c("bt.reg"),  # "bt.reg", "bt.cl", "no.ci"
                                     calib.method = "MR",
                                     #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
                                     k = c(100),
@@ -201,47 +64,14 @@ if ( run.local == TRUE ) {
                                     start.at = 1 ) )
   
   
-  # # full set of scenarios
-  # ( scen.params = make_scen_params( method = "boot.whole",
-  #                                   calib.method = "MR",
-  #                                   
-  #                                   k = rev(c(10, 20, 50, 100, 150)),
-  #                                   b0 = 0, # intercept
-  #                                   bc = 0.5, # effect of continuous moderator
-  #                                   bb = 1, # effect of binary moderator
-  #                                   
-  #                                   zc.star = 0.5,  # "active" level of moderator to consider
-  #                                   zb.star = 1,
-  #                                   
-  #                                   zc.ref = 2,  # reference levels of moderator to consider
-  #                                   zb.ref = 0,
-  #                                   
-  #                                   # Previous choices:
-  #                                   # zc.star = 0.5,  # "active" level of moderator to consider
-  #                                   # zb.star = 1,
-  #                                   # 
-  #                                   # zc.ref = 2,  # reference levels of moderator to consider
-  #                                   # zb.ref = 0,
-  #                                   
-  #                                   V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
-  #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50, 800),
-  #                                   sd.w = c(1),
-  #                                   tail = "above",
-  #                                   true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
-  #                                   TheoryP = c(0.05, 0.1, 0.2, 0.5),
-  #                                   start.at = 1 ) )
+ 
   
   # just to see it
   data.frame(scen.params)
   
   n.scen = nrow(scen.params)
   
-  #as.data.frame(scen.params)
-  
-  
-  # sim.reps = 500  # reps to run in this iterate; leave this alone!
-  # boot.reps = 1000
+
   sim.reps = 100
   boot.reps = 1000  # ~~ temp only
   
@@ -338,26 +168,79 @@ for ( scen in scen.params$scen.name ) {
           
           # nest by cluster in case we need to do cluster bootstrap
           # now has one row per cluster
-          # works whether there is clustering or not
           dNest = d %>% group_nest(cluster)
+          
           
           # this is just the resampling part, not the CI estimation
           boot.res = my_boot( data = dNest, 
                               parallel = "multicore",
                               R = boot.reps, 
                               statistic = function(original, indices) {
-                                # @ for clustering, need to use cluster_bt here
                                 
+                          
                                 # @NEW
                                 # bm
                                 # either use regular bootstrap or cluster bootstrap as appropriate
                                 
-                                if ( p$method == "bt.smart" ) {
+                                if ( p$method == "bt.reg" ) {
+                                  # test only
+                                  #indices = sample(1:nrow(dNest), replace = TRUE)
                                   bNest = original[indices,]
                                   b = bNest %>% unnest(data)
                                 }
                                 
+                                # # bm
+                                # if ( p$method == "bt.reg.mine" ) {
+                                #   inds = sample(1:nrow(original), replace = TRUE)
+                                #   b = original[inds,]
+                                #   
+                                #   indices <<- inds
+                                # }
+                                # 
+                                # 
+                                # 
                                 # if ( p$method == "bt.cl" ){
+                                #   
+                                #   # # guts of cluster.resample
+                                #   # data = d
+                                #   # cluster.name = "cluster"
+                                #   # size = length( unique(original$cluster) )
+                                #   # IDs <- unique(data[, cluster.name])
+                                #   # # IDs of clusters sampled with replacement
+                                #   # y <- sample(IDs, size, replace = TRUE)
+                                #   # # table of counts for how many clusters are to appear 1, 2, 3, ... times in dataset
+                                #   # z <- table(table(y))
+                                #   # # z[1] is the number of clusters chosen once, e.g., 31
+                                #   # # from ALL the clusters, choose 31 of them WITHOUT replacement
+                                #   # # so selectID represents the clusters that are to appear once in the ultimate resampled dataset
+                                #   # selectID <- sample(IDs, size = z[1], replace = FALSE)
+                                #   # # retain all observations whose cluster was in the selected IDs
+                                #   # newdata <- data[which(data[, cluster.name] %in% selectID), 
+                                #   # ]
+                                #   # 
+                                #   # # now go through the other counts of how often a cluster could be assigned to appear
+                                #   # # e.g. for i=2:
+                                #   # # 
+                                #   # if (length(z) > 1) {
+                                #   #   # i: the number of times that a cluster could be assigned to appear
+                                #   #   for (i in 2:length(z)) {
+                                #   #     # IDs: the cluster IDs that were NOT assigned to be chosen once (i.e., still eligible for assignment)
+                                #   #     # if selectID was length 31 and there are 100 total clusters, this will be length 100-31
+                                #   #     IDs2 <- setdiff(IDs, selectID)
+                                #   #     # from the remaining eligible clusters, choose the appropriate count of them (z[i]) to appear twice (for i=2) in the resample
+                                #   #     selectID2 <- sample(IDs2, size = z[i], replace = FALSE)
+                                #   #     # update selectID to reflect that selectID2 are no longer eligible for the next i
+                                #   #     selectID <- c(selectID, selectID2)
+                                #   #     # rbind the corresponding data to the resample twice (for i=2)
+                                #   #     for (j in 1:i) {
+                                #   #       newdata <- rbind(newdata, data[which(data[, cluster.name] %in% 
+                                #   #                                              selectID2), ])
+                                #   #     }
+                                #   #   }
+                                #   #   return(newdata)
+                                #   # }
+                                #   
+                                #   
                                 #   # resample CLUSTERS with replacement (keep number of clusters the same)
                                 #   #  and retain all observations within the resampled clusters
                                 #   # so total N could be different in the bootstrapped sample
@@ -369,9 +252,18 @@ for ( scen in scen.params$scen.name ) {
                                 
                                 tryCatch({
                                   
+                                  
+                                  
                                   # bootstrap diagnostics
-                                  btRows = nrow(b)
-                                  btNClusters = length(unique(b$cluster))
+                                  ( btRows = nrow(b) )
+                                  ( btNClusters = length(unique(b$cluster)) )
+                                  
+                                  # compare the yi's in bootstrapped df for the first chosen cluster
+                                  # to corresponding cluster in d
+                                  # in b, each observation may appear multiple times,
+                                  #  but should still have all observations
+                                  # table( b$yi[ b$cluster == b$cluster[1]] )
+                                  # table( d$yi[ d$cluster == b$cluster[1]] )
                                   
                                   b.stats = prop_stronger_mr(dat = b,
                                                              zc.star = p$zc.star,
@@ -379,8 +271,8 @@ for ( scen in scen.params$scen.name ) {
                                                              zc.ref = p$zc.ref,
                                                              zb.ref = p$zb.ref,
                                                              #calib.method = "MR",
-                                                             calib.method = p$calib.method
-                                  )
+                                                             calib.method = p$calib.method )
+                                  
                                   
                                   # only return the 3 stats of interest
                                   c( as.numeric(b.stats["Phat"]),
@@ -469,8 +361,6 @@ for ( scen in scen.params$scen.name ) {
         truncLogitBootCIs <<- c(NA, NA)
         bt.means = rep(NA, n.ests)
         bt.sds = rep(NA, n.ests)
-        btRows = NA
-        btNClusters = NA
       }
       
       
@@ -491,6 +381,7 @@ for ( scen in scen.params$scen.name ) {
         VzetaEmp = var( d$zeta1[ !duplicated(d$cluster) ] ),
         
         # boot diagnostics
+        # @ maybe put in the real doParallel as well?
         btNClusters = btNClusters,
         btRows = btRows,
         
@@ -549,6 +440,10 @@ for ( scen in scen.params$scen.name ) {
   if ( scen == scen.params$scen.name[1] ) rs2 = rs
   else rs2 = rbind(rs2, rs)
 }
+
+
+table(rs2$nClusters)
+table(rs2$btRows)
 
 # trying with more sim.reps
 # compare bt.reg to bt.cl

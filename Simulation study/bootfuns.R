@@ -1202,13 +1202,19 @@ bca.ci <-
         t0 <- boot.out$t0[index]
     }
     t <- t[is.finite(t)]
+    # MM: bias adjustment from comparing bootstrap distribution to original statistic
     w <- qnorm(sum(t < t0)/length(t))
+    
     if (!is.finite(w)) stop("estimated adjustment 'w' is infinite")
     alpha <- (1+c(-conf,conf))/2
-    zalpha <- qnorm(alpha)
+    zalpha <- qnorm(alpha)  # MM: 1.96
+    
     if (is.null(L))
+      # MM: empinf function is part of boot package and needs to be passed
+      #   an object of type boot
         L <- empinf(boot.out, index=index, t=t.o, ...)
     a <- sum(L^3)/(6*sum(L^2)^1.5)
+    
     if (!is.finite(a)) stop("estimated adjustment 'a' is NA")
     adj.alpha <- pnorm(w + (w+zalpha)/(1-a*(w+zalpha)))
     qq <- norm.inter(t,adj.alpha)

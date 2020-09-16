@@ -68,7 +68,7 @@ my_summarise = function(dat){
 # # draw cluster bootstrap sample
 # # assumes cluster variable is named "cluster"
 # # this is Davison & Hinkley's recommendation 
-# #  see section 3.8 in "Further Topics" chapter
+# #  see section 3.8 in "Further Ideas" chapter (page 100)
 # cluster_bt = function(.dat, .clustervar){
 #   
 #   # test only
@@ -122,6 +122,7 @@ my_summarise = function(dat){
 # includes the meta-regression part since we want to bootstrap that process
 # calib.method: "DL", "MR", "MR bt mn correct", "MR bt var correct", "MR bt both correct", "params" (latter bypasses meta-regressive parameter estimation and calibrates using the true parameters as a benchmark)
 # dat must have a column called "cluster" (could be 1 for each study if no clustering)
+# requires scen.params row called "p" to exist
 prop_stronger_mr = function(dat,
                             zc.star,
                             zb.star,
@@ -167,7 +168,9 @@ prop_stronger_mr = function(dat,
   }
   
   # point estimates shifted to have Z = 0
-  dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb)  
+  dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb) 
+  
+  #browser()
   
   ##### Two-Stage Calibration Method ("DL") #####
   # use regular meta-analysis on the shifted point estimates
@@ -191,10 +194,16 @@ prop_stronger_mr = function(dat,
                           R = boot.reps, 
                           statistic = function(original, indices) {
                             
-                            if ( p$Vzeta == 0 ) {
+                            # @TEMP ONLY
+                            if ( p$method == "bt.reg" ) {
                               b = original[indices,]
-                            } else {
+                            }
+                            
+                            if ( p$method == "bt.cl") {
                         
+                              # resample CLUSTERS with replacement (keep number of clusters the same)
+                              #  and retain all observations within the resampled clusters
+                              # so total N could be different in the bootstrapped sample
                               b = cluster.resample(data = original,
                                                    cluster.name = "cluster",
                                                    # number of CLUSTERS to resample
@@ -565,8 +574,8 @@ sim_data2 = function( k, # total number of studies
   
   # # @test for m=k case
   # # TEST ONLY
-  # k = 6
-  # m = 2
+  # k = 3
+  # m = 3
   # b0 = 0 # intercept
   # bc = 0 # effect of continuous moderator
   # bb = 0 # effect of binary moderator
@@ -576,16 +585,21 @@ sim_data2 = function( k, # total number of studies
   # minN = 50
   # sd.w = 1
   # true.effect.dist = "expo"
-  # 
-  
-  if ( Vzeta > V ) stop( "Vzeta must be less than or equal to V")
   
   
-  # randomly assign studies to clusters
-  # @different from SAPB method of fixing number of studies in each cluster
-  # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced
-  if (m < k) cluster = sample( 1:m, size = k, replace = TRUE )
+  if ( Vzeta > V ) stop( "Vzeta must be less than or equal to V" )
+  
+  
+  # assign studies to clusters
+  # each in own cluster:
   if (m == k) cluster = 1:k  # each in its own cluster
+  # k not divisble by m:
+  # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced and actual number of cluster might be less than m 
+  if ( m < k ) cluster = sample( 1:m, size = k, replace = TRUE )
+  # @ PUT THIS BACK:
+  # if ( m < k & (k %% m != 0) ) cluster = sample( 1:m, size = k, replace = TRUE )
+  # # k divisible by m:
+  # if ( m < k & (k %% m == 0) ) cluster = rep(1:k, each = k/m)
   if (m > k) stop("m must be <= k")
   
   cluster = sort(cluster)
@@ -603,7 +617,7 @@ sim_data2 = function( k, # total number of studies
                             bb, # effect of binary moderator
                             V = V, 
                             Vzeta = Vzeta, 
-                            zeta1 = zeta1i[i], # cluster random intercept for this study;s cluster
+                            zeta1 = zeta1i[i], # cluster random intercept for this study's cluster
                             muN = muN,
                             minN = minN,
                             sd.w = sd.w,

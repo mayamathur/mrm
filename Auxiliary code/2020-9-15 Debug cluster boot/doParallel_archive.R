@@ -54,7 +54,6 @@ if (run.local == FALSE) {
   library(MetaUtility, lib.loc = "/home/groups/manishad/Rpackages/")
   library(ICC, lib.loc = "/home/groups/manishad/Rpackages/")
   library(cfdecomp, lib.loc = "/home/groups/manishad/Rpackages/")
-  library(tidyr, lib.loc = "/home/groups/manishad/Rpackages/")
   
   # for use in ml load R
   # install.packages( c("metRology"), lib = "/home/groups/manishad/Rpackages/" )
@@ -135,7 +134,6 @@ if ( run.local == TRUE ) {
   library(MetaUtility)
   library(ICC)
   library(cfdecomp)
-  library(tidyr)
   
   # helper fns
   code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
@@ -171,7 +169,7 @@ if ( run.local == TRUE ) {
   
   
   # debug cluster error
-  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.reg", "bt.cl", "no.ci"
+  ( scen.params = make_scen_params( method = c("bt.reg", "bt.cl"),  # "bt.reg", "bt.cl", "no.ci"
                                     calib.method = "MR",
                                     #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
                                     k = c(100),
@@ -331,18 +329,13 @@ for ( scen in scen.params$scen.name ) {
       PhatDiff = d.stats$Phat.diff
       
       ##### Bootstrap #####
-      if ( grepl(pattern = "bt", x=p$method) ) {
+      if ( p$method %in% c("bt.reg", "bt.cl") ) {
         
         Note = NA
         tryCatch({
           
-          # nest by cluster in case we need to do cluster bootstrap
-          # now has one row per cluster
-          # works whether there is clustering or not
-          dNest = d %>% group_nest(cluster)
-          
           # this is just the resampling part, not the CI estimation
-          boot.res = my_boot( data = dNest, 
+          boot.res = my_boot( data = d, 
                               parallel = "multicore",
                               R = boot.reps, 
                               statistic = function(original, indices) {
@@ -352,27 +345,21 @@ for ( scen in scen.params$scen.name ) {
                                 # bm
                                 # either use regular bootstrap or cluster bootstrap as appropriate
                                 
-                                if ( p$method == "bt.smart" ) {
-                                  bNest = original[indices,]
-                                  b = bNest %>% unnest(data)
+                                if ( p$method == "bt.reg" ) {
+                                  b = original[indices,]
                                 }
                                 
-                                # if ( p$method == "bt.cl" ){
-                                #   # resample CLUSTERS with replacement (keep number of clusters the same)
-                                #   #  and retain all observations within the resampled clusters
-                                #   # so total N could be different in the bootstrapped sample
-                                #   b = cluster.resample(data = original,
-                                #                        cluster.name = "cluster",
-                                #                        # number of CLUSTERS to resample
-                                #                        size = length( unique(original$cluster) ) )
-                                # }
+                                if ( p$method == "bt.cl" ){
+                                  # resample CLUSTERS with replacement (keep number of clusters the same)
+                                  #  and retain all observations within the resampled clusters
+                                  # so total N could be different in the bootstrapped sample
+                                  b = cluster.resample(data = original,
+                                                       cluster.name = "cluster",
+                                                       # number of CLUSTERS to resample
+                                                       size = length( unique(original$cluster) ) )
+                                }
                                 
                                 tryCatch({
-                                  
-                                  # bootstrap diagnostics
-                                  btRows = nrow(b)
-                                  btNClusters = length(unique(b$cluster))
-                                  
                                   b.stats = prop_stronger_mr(dat = b,
                                                              zc.star = p$zc.star,
                                                              zb.star = p$zb.star,
@@ -469,8 +456,6 @@ for ( scen in scen.params$scen.name ) {
         truncLogitBootCIs <<- c(NA, NA)
         bt.means = rep(NA, n.ests)
         bt.sds = rep(NA, n.ests)
-        btRows = NA
-        btNClusters = NA
       }
       
       
@@ -489,10 +474,6 @@ for ( scen in scen.params$scen.name ) {
         # number of clusters (could be <m for reasons described in helper code)
         nClusters = length(unique(d$cluster)),
         VzetaEmp = var( d$zeta1[ !duplicated(d$cluster) ] ),
-        
-        # boot diagnostics
-        btNClusters = btNClusters,
-        btRows = btRows,
         
         # for "star" level of moderators
         Phat = d.stats$Phat,
