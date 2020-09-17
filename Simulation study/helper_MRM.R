@@ -16,6 +16,18 @@ expit = function(x) {
   exp(x) / (1 + exp(x))
 }
 
+# calculate I^2 from t^2 and N
+I2 = function(t2, N) {
+  t2 / (t2 + 4/N)
+}
+
+# check CI coverage
+covers = function( truth, lo, hi ) {
+  return( (lo <= truth) & (hi >= truth) )
+}
+
+
+
 ############################# FN: MAKE SUMMARY TABLE FOR ANALYSIS #############################
 
 my_summarise = function(dat){
@@ -53,72 +65,6 @@ my_summarise = function(dat){
 
 ############################# FNS FOR BOOTSTRAPPING #############################
 
-# # list with first entry for b and second entry for t2
-# # n.ests: how many parameters were estimated?
-# # NOT IN USE ANYMORE
-# get_boot_CIs = function(boot.res, type, n.ests) {
-#   bootCIs = lapply( 1:n.ests, function(x) boot.ci(boot.res, type = type, index = x) )
-#   
-#   # list with first entry for b and second entry for t2
-#   # the middle index "4" on the bootCIs accesses the stats vector
-#   # the final index chooses the CI lower (4) or upper (5) bound
-#   bootCIs = lapply( 1:n.ests, function(x) c( bootCIs[[x]][[4]][4],
-#                                              bootCIs[[x]][[4]][5] ) )
-# }
-
-
-
-# # draw cluster bootstrap sample
-# # assumes cluster variable is named "cluster"
-# # this is Davison & Hinkley's recommendation 
-# #  see section 3.8 in "Further Ideas" chapter (page 100)
-# cluster_bt = function(.dat, .clustervar){
-#   
-#   # test only
-#   .dat = d
-#   .clustervar = "cluster"
-#   
-#   .dat$cluster = .dat[[.clustervar]]
-#   clusters = unique(.dat$cluster)
-#   
-#   browser()
-
-#   # resample clusters, keeping the total number of clusters the same and leaving observations intact within each cluster
-#   #https://stats.stackexchange.com/questions/46821/bootstrapping-hierarchical-multilevel-data-resampling-clusters
-#   # see answer by dash2
-#   # cluster.ids = data.frame(cluster = sample( clusters, size = length(clusters), replace = TRUE))
-#   cluster.ids = sample(clusters, size = length(clusters), replace=TRUE)
-# 
-#   # data frame of clusters
-#   cldf = data.frame( cluster = cluster.ids )
-#   datb = merge( cldf, .dat, all.x = TRUE, by = "cluster")
-# 
-#   return(datb)
-# }
-
-# # sanity check
-# # after generating data from sim_data2
-# d = sim_data2( k = 10, 
-#                m = 3,
-#                b0 = 0, # intercept
-#                bc = 0, # effect of continuous moderator
-#                bb = 0, # effect of binary moderator 
-#                V = .25,
-#                Vzeta = .2,
-#                muN = 50, 
-#                minN = 50,
-#                sd.w = 1,
-#                true.effect.dist = "normal" )
-# 
-# library(cfdecomp)
-# b = cluster.resample(data = d,
-#                      cluster.name = "cluster",
-#                      # number of CLUSTERS to resample
-#                      size = length( unique(d$cluster) ) )
-# 
-# nrow(d); table(d$cluster)
-# nrow(b); table(b$cluster)
-
 
 ########################### FN: PHAT FOR META-REGRESSION ###########################
 
@@ -147,6 +93,7 @@ prop_stronger_mr = function(dat,
   Zc = dat$Zc
   Zb = dat$Zb
   
+  # keep track of bootstrapping issues
   bootFail = FALSE
   BtCorrectNote = NA
   
@@ -172,9 +119,7 @@ prop_stronger_mr = function(dat,
   
   # point estimates shifted to have Z = 0
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb) 
-  
-  #browser()
-  
+
   ##### Two-Stage Calibration Method ("DL") #####
   # use regular meta-analysis on the shifted point estimates
   if ( calib.method == "DL" ){
@@ -206,23 +151,7 @@ prop_stronger_mr = function(dat,
                               bNest = original[indices,]
                               b = bNest %>% unnest(data)
                             }
-                            
-                            # # @TEMP ONLY
-                            # if ( p$method == "bt.reg" ) {
-                            #   b = original[indices,]
-                            # }
-                            # 
-                            # if ( p$method == "bt.cl") {
-                            # 
-                            #   # resample CLUSTERS with replacement (keep number of clusters the same)
-                            #   #  and retain all observations within the resampled clusters
-                            #   # so total N could be different in the bootstrapped sample
-                            #   b = cluster.resample(data = original,
-                            #                        cluster.name = "cluster",
-                            #                        # number of CLUSTERS to resample
-                            #                        size = length( unique(original$cluster) ) )
-                            # }
-                            
+                   
                             tryCatch({
                               mb = robu( yi ~ Zc + Zb, 
                                          data = b, 
@@ -318,93 +247,8 @@ prop_stronger_mr = function(dat,
 # minN = minimum sample size 
 # sd.w = SD within each group (2-group experiment)
 
-# updated 2020-6-7 from NPPhat code
-sim_one_study = function( b0, # intercept
-                          bc, # effect of continuous moderator
-                          bb, # effect of binary moderator
-                          V, 
-                          muN,
-                          minN,
-                          sd.w,
-                          true.effect.dist = "normal"
-) {
-  
-  # # TEST ONLY
-  # b0 = 0.5 # intercept
-  # bc = 0.5 # effect of continuous moderator
-  # bb = 1 # effect of binary moderator
-  # V = .5
-  # muN = 100
-  # minN = 50
-  # sd.w = 1
-  # true.effect.dist = "normal"
-  
-  # simulate total N for each study
-  N = round( runif( n = 1, min = minN, max = minN + 2*( muN - minN ) ) ) # draw from uniform centered on muN
-  
-  # simulate study-level moderators
-  Zc = rnorm( n = 1, mean = 0, sd = 1)
-  Zb = rbinom( n = 1, size = 1, prob = 0.5)
-  
-  # mean (i.e., linear predictor) conditional on the moderators
-  mu = b0 + bc*Zc + bb*Zb
-  # all that follows is that same as in NPPhat
-  
-  ##### Draw a Single Population True Effect for This Study #####
-  if ( true.effect.dist == "normal" ) {
-    Mi = rnorm( n=1, mean=mu, sd=sqrt(V) )
-  }
-  if ( true.effect.dist == "expo" ) {
-    # set the rate so the heterogeneity is correct
-    Mi = rexp( n = 1, rate = sqrt(1/V) )
-    # now the mean is sqrt(V) rather than mu
-    # shift to have the correct mean (in expectation)
-    Mi = Mi + (mu - sqrt(V))
-  }
-  if ( true.effect.dist == "unif2") {
-    Mi = runif2( n = 1,
-                 mu = mu, 
-                 V = V)$x
-  }
-  if (true.effect.dist == "t.scaled") {
-    Mi = rt.scaled(n = 1,
-                   df = 3,  # fixed for all scenarios to get very heavy tails
-                   mean = mu,
-                   sd = sqrt(V))
-  }
-  
-  ###### Simulate Data For Individual Subjects ######
-  
-  # group assignments
-  X = c( rep( 0, N/2 ), rep( 1, N/2 ) )
-  
-  # simulate continuous outcomes
-  # 2-group study of raw mean difference with means 0 and Mi in each group
-  # and same SD
-  Y = c( rnorm( n = N/2, mean = 0, sd = sd.w ),
-         rnorm( n = N/2, mean = Mi, sd = sd.w ) )
-  
-  # calculate ES for this study using metafor (see Viechtbauer "Conducting...", pg 10)
-  require(metafor)
-  ES = escalc( measure="SMD",   
-               n1i = N/2, 
-               n2i = N/2,
-               m1i = mean( Y[X==1] ),
-               m2i = mean( Y[X==0] ),
-               sd1i = sd( Y[X==1] ),
-               sd2i = sd( Y[X==0] ) ) 
-  yi = ES$yi
-  vyi = ES$vi
-  
-  return( data.frame( Mi,
-                      mu,
-                      Zc,  # study-level continuous moderator
-                      Zb,  # study-level continuous moderator
-                      yi,  # point estimate
-                      vyi ) )  # variance 
-}
 
-# with clustering
+# potentially with clustering
 sim_one_study2 = function(b0, # intercept
                           bc, # effect of continuous moderator
                           bb, # effect of binary moderator
@@ -439,9 +283,6 @@ sim_one_study2 = function(b0, # intercept
   # simulate study-level moderators (each a scalar)
   Zc = rnorm( n = 1, mean = 0, sd = 1)
   Zb = rbinom( n = 1, size = 1, prob = 0.5)
-  
-  # bm
-  #browser()
   
   # mean (i.e., linear predictor) conditional on the moderators and cluster membership
   mu = b0 + zeta1 + bc*Zc + bb*Zb
@@ -492,81 +333,10 @@ sim_one_study2 = function(b0, # intercept
                       vyi ) )
 }
 
-# calculate I^2 from t^2 and N
-I2 = function(t2, N) {
-  t2 / (t2 + 4/N)
-}
-
 
 ########################### FN: SIMULATE 1 WHOLE DATASET ###########################
-# Vw = within-study variances
-# Vwv = variance of within-study variances
-# p1 = P(X=1)
-# p.int = P(Y=1 | X=0, U=0), i.e., intercept probability for logistic model
 
-# updated 2020-6-5
-sim_data = function( k, 
-                     b0, # intercept
-                     bc, # effect of continuous moderator
-                     bb, # effect of binary moderator 
-                     V,
-                     muN, 
-                     minN,
-                     sd.w, 
-                     true.effect.dist) {
-  
-  
-  # initialize estimated ES to values that will enter the while-loop
-  t2 = 0  
-  
-  # if RE fit isn't apparently causative, or if denominator is going to be undefined, sample again
-  # ~~~~~~ NOTE: NEED TO BE CAREFUL CHOOSING PARAMETERS TO AVOID SYSTEMATICALLY
-  # REJECTING LOTS OF SAMPLES WITH LOWER HETEROGENEITY
-  # ~~~ MAYBE DON'T NEED TO REJECT 
-  #while ( t2 == 0 ) {
-  #while ( (M <= 0) | (V == 0) ) {   
-  yi = c()
-  vyi = c()
-  Mi = c()
-  mu = c()
-  Zb = c()
-  Zc = c()
-  
-  
-  # simulate k studies
-  for (i in 1:k) {
-    study = sim_one_study( b0, # intercept
-                           bc, # effect of continuous moderator
-                           bb, # effect of binary moderator
-                           V = V, 
-                           muN = muN,
-                           minN = minN,
-                           sd.w = sd.w,
-                           true.effect.dist = true.effect.dist)
-    yi = c( yi, study$yi )  # append this study's ES to the list
-    vyi = c( vyi, study$vyi )  # append this study's variance to the list
-    Mi = c( Mi, study$Mi )  # append this study's mean to the list
-    mu = c( mu, study$mu )
-    Zc = c( Zc, study$Zc )
-    Zb = c( Zb, study$Zb )
-  }
-  
-  
-  #   # fit RE model in order to record t2
-  #   temp = rma.uni( yi=yi,
-  #                   vi=vyi,
-  #                   measure="SMD",
-  #                   knha = TRUE,
-  #                   method = "REML" )
-  #   t2 = temp$tau2
-  # }
-  
-  return( data.frame( Mi, mu, Zc, Zb, yi, vyi ) )
-}
-
-
-
-# with clustering
+# potentially with clustering
 # notes:
 # - number of actually generated clusters could be less than m
 #  because we randomly draw from the m clusters with replacement (to allow for k not divisible by m)
@@ -608,11 +378,11 @@ sim_data2 = function( k, # total number of studies
   if (m == k) cluster = 1:k  # each in its own cluster
   # k not divisble by m:
   # fine if k isn't divisible by m (number of clusters); clusters will just be unbalanced and actual number of cluster might be less than m 
-  if ( m < k ) cluster = sample( 1:m, size = k, replace = TRUE )
-  # @ PUT THIS BACK:
-  # if ( m < k & (k %% m != 0) ) cluster = sample( 1:m, size = k, replace = TRUE )
-  # # k divisible by m:
-  # if ( m < k & (k %% m == 0) ) cluster = rep(1:k, each = k/m)
+  #if ( m < k ) cluster = sample( 1:m, size = k, replace = TRUE )
+  # k not divisible by m: assign each observation to a cluster chosen at random (unbalanced clusters)
+  if ( m < k & (k %% m != 0) ) cluster = sample( 1:m, size = k, replace = TRUE )
+  # k divisible by m: assign observations to clusters in a balanced way
+  if ( m < k & (k %% m == 0) ) cluster = rep(1:k, each = k/m)
   if (m > k) stop("m must be <= k")
   
   cluster = sort(cluster)
@@ -647,14 +417,6 @@ sim_data2 = function( k, # total number of studies
                     y = d$Mi )  
   
   return(d)
-}
-
-
-
-
-##### Fn: Check CI coverage #####
-covers = function( truth, lo, hi ) {
-  return( (lo <= truth) & (hi >= truth) )
 }
 
 
@@ -843,7 +605,7 @@ calculate_q = function(true.effect.dist,
                        b0,
                        bc,
                        bb,
-                       zc,  # chosen value of 
+                       zc,   
                        zb,
                        V){
   
