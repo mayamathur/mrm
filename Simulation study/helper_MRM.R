@@ -2,7 +2,10 @@
 # audited the post-NPPhat parts 2020-6-17
 
 
-#@are we still going to use these?
+############################# SMALL MISC FNS #############################
+
+# take the logit of a probability, but truncate
+#  to avoid infinities
 truncLogit <- function(p) {
   p[p==0] = 0.001
   p[p==1] = 0.999
@@ -188,27 +191,37 @@ prop_stronger_mr = function(dat,
   
   if ( calib.method %in% c("MR bt mn correct", "MR bt var correct", "MR bt both correct" ) ) {
     
+    # nest by cluster in case we need to do cluster bootstrap
+    # now has one row per cluster
+    # works whether there is clustering or not
+    datNest = dat %>% group_nest(cluster)
+    
     tryCatch({
-      boot.res = my_boot( data = dat, 
+      boot.res = my_boot( data = datNest, 
                           parallel = "multicore",
                           R = boot.reps, 
                           statistic = function(original, indices) {
                             
-                            # @TEMP ONLY
-                            if ( p$method == "bt.reg" ) {
-                              b = original[indices,]
+                            if ( p$method == "bt.smart" ) {
+                              bNest = original[indices,]
+                              b = bNest %>% unnest(data)
                             }
                             
-                            if ( p$method == "bt.cl") {
-                        
-                              # resample CLUSTERS with replacement (keep number of clusters the same)
-                              #  and retain all observations within the resampled clusters
-                              # so total N could be different in the bootstrapped sample
-                              b = cluster.resample(data = original,
-                                                   cluster.name = "cluster",
-                                                   # number of CLUSTERS to resample
-                                                   size = length( unique(original$cluster) ) )
-                            }
+                            # # @TEMP ONLY
+                            # if ( p$method == "bt.reg" ) {
+                            #   b = original[indices,]
+                            # }
+                            # 
+                            # if ( p$method == "bt.cl") {
+                            # 
+                            #   # resample CLUSTERS with replacement (keep number of clusters the same)
+                            #   #  and retain all observations within the resampled clusters
+                            #   # so total N could be different in the bootstrapped sample
+                            #   b = cluster.resample(data = original,
+                            #                        cluster.name = "cluster",
+                            #                        # number of CLUSTERS to resample
+                            #                        size = length( unique(original$cluster) ) )
+                            # }
                             
                             tryCatch({
                               mb = robu( yi ~ Zc + Zb, 
