@@ -82,7 +82,7 @@ my_summarise = function(dat){
 #   clusters = unique(.dat$cluster)
 #   
 #   browser()
-#   
+
 #   # resample clusters, keeping the total number of clusters the same and leaving observations intact within each cluster
 #   #https://stats.stackexchange.com/questions/46821/bootstrapping-hierarchical-multilevel-data-resampling-clusters
 #   # see answer by dash2
