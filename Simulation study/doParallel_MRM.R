@@ -34,9 +34,15 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 100
-  # was 5,000 in NPPhat
-  boot.reps = 5000
+  sim.reps = 50
+  # used boot.reps=s5,000 in NPPhat
+  # just reduced to 1,000
+  # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
+  # JUST TO LOOK AT TIMEOUT ISSUE:
+  # for largest scenario (k=150) with method MR and boot.reps=50 and sim.reps=100, one sbatch took 15 min
+  #  so boot.reps=1,000 should be about 5 hrs
+  # reducing sim.reps to 50 should be about 2.5 hrs
+  boot.reps = 1000
   
   
   # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
@@ -203,8 +209,10 @@ if ( run.local == TRUE ) {
   
   # full set of scenarios
   # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
+  # full set of scenarios
+  # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
   ( scen.params = make_scen_params( method = "bt.smart",
-                                    calib.method = c("MR bt mn correct", "MR bt var correct", "MR bt both correct", "MR", "DL"),
+                                    calib.method = c("MR bt both correct", "MR", "DL"),
                                     
                                     k = rev(c(10, 20, 50, 100, 150)),
                                     m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
@@ -225,7 +233,7 @@ if ( run.local == TRUE ) {
                                     # zc.ref = 2,  # reference levels of moderator to consider
                                     # zb.ref = 0,
                                     
-                                    V = c( 0.75^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ), # residual variance
+                                    V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
                                     Vzeta = NA, # to be filled in
                                     muN = NA,  # just a placeholder; to be filled in later
                                     minN = c(50, 800),
@@ -234,6 +242,7 @@ if ( run.local == TRUE ) {
                                     true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
                                     TheoryP = c(0.05, 0.1, 0.2, 0.5),
                                     start.at = 1 ) )
+  
   
   # define clustering scenarios
   # m = -99 will be no clustering
@@ -343,9 +352,14 @@ if ( run.local == TRUE ) {
       PhatDiff = d.stats$Phat.diff
       
       ##### Bootstrap #####
+
       if ( grepl(pattern = "bt", x=p$method) ) {
         
         Note = NA
+        # boot sanity checks that will be overwritten if bootstrap succeeds
+        btRows = NA
+        btNClusters = NA
+        
         tryCatch({
           
           # nest by cluster in case we need to do cluster bootstrap
@@ -390,7 +404,8 @@ if ( run.local == TRUE ) {
                                      truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
                                   )
                                 }, error = function(err){
-                                  rep(NA, 5)
+                        
+                                  return( rep(NA, 5) )
                                 })
                                 
                               } )
@@ -546,6 +561,9 @@ if ( run.local == TRUE ) {
     }  ### end foreach loop
     
   } )[3]  # end timer
+
+
+rs$repTime = rep.time
   
 # # for local use
 #   if ( scen == scen.params$scen.name[1] ) rs2 = rs

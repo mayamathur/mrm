@@ -8,17 +8,17 @@ library(tidyverse)
 library(testthat)
 library(readxl)
 library(metafor)
-library(robu)
+library(robumeta)
 
 raw.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Raw data"
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Prepped data"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Applied example"
-  
+
 setwd(code.dir)
 source("helper_applied_MRM.R")
 
 
-################################## PREP DATA ################################## 
+################################## PREP HU DATA ################################## 
 
 setwd(raw.data.dir)
 dh = read.csv("TMRMetaData_OutcomeEffectSizes.csv")
@@ -170,3 +170,47 @@ write.csv(dh2, "hu_data_prepped.csv")
 
 
 
+
+################################## PREP MATHUR DATA ################################## 
+
+setwd(raw.data.dir)
+dm = read.csv("mathur_prepped_data_lean.csv")
+dm = dm %>% filter( exclude.main == FALSE )
+expect_equal( nrow(dm), 100 )
+
+qual.vars.raw = c("qual.y.prox",
+                  "qual.missing",
+                  "qual.exch",
+                  "qual.gen",
+                  "qual.sdb",
+                  "qual.y.prox",
+                  "qual.gen",
+                  "qual.sdb",
+                  "qual.prereg",
+                  "qual.public.data")
+
+# recode quality variables as binary
+dm$qual.y.prox2 = binary_recode(dm$qual.y.prox, "b.Self-reported"); table(dm$qual.y.prox2, dm$qual.y.prox)
+dm$low.miss = dm$qual.missing < 15
+dm$qual.exch2 = binary_recode(dm$qual.exch, "a.Low"); table(dm$qual.exch2, dm$qual.exch)
+dm$qual.sdb2 = binary_recode(dm$qual.sdb, "a.Low")
+dm$qual.gen2 = binary_recode(dm$qual.gen, "a.Low")
+dm$qual.prereg2 = binary_recode(dm$qual.prereg, "Yes")
+dm$qual.public.data2 = binary_recode(dm$qual.public.data, "Yes")
+
+qual.vars = c("qual.y.prox2",
+              "low.miss",
+              "qual.exch2",
+              "qual.gen2",
+              "qual.sdb2",
+              "qual.prereg2",
+              "qual.public.data2")
+
+# sanity check: check counts against Table 2 from AWR
+apply( dm %>% select(qual.vars), 2, function(x) sum(x, na.rm = TRUE) )
+
+
+setwd(prepped.data.dir)
+write.csv(dm, "mathur_data_prepped.csv")
+              
+              

@@ -48,6 +48,8 @@ length(unique(s$scen.name))
 
 ##### Quick Look at Results #####
 
+table(is.na(s$PhatLo))
+table(is.na(s$DiffLo))
 
 # assumes a single scenario
 mean(s$Phat)

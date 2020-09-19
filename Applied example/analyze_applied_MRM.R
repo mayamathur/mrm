@@ -23,6 +23,7 @@ source("helper_applied_MRM.R")
 
 setwd(prepped.data.dir)
 dh = read.csv("hu_data_prepped.csv")
+dm = read.csv("mathur_data_prepped.csv")
 
 
 ################################## BASIC STATS ################################## 
@@ -92,11 +93,15 @@ q.shift = stats[[6]]
 q.shift.ref = stats[[7]]
 
 # bootstrapped inference
-boot.res = boot( data = dh, 
+dhNest = dh %>% group_nest(study)
+expect_equal(nrow(dhNest), 87)
+
+boot.res = boot( data = dhNest, 
                  parallel = "multicore",
                  R = boot.reps, 
                  statistic = function(original, indices) {
-                    b = original[indices,]
+                    bNest = original[indices,]
+                    b = bNest %>% unnest(data)
                     
                     get_phat_hu(dat = b,
                                      q = q,
@@ -105,8 +110,11 @@ boot.res = boot( data = dh,
                                      return.meta = FALSE)
                  } )
 
+# order of stats:
+# Phat, Phat.ref, Phat - Phat.ref
 ( bootCIs = get_boot_CIs(boot.res, n.ests = 3) )
-
+# point estimates:
+stats[[2]]
 
 ################################## PLOT MARGINAL AND CONDITIONAL CALIBRATED ESTIMATES #################################
 
@@ -157,69 +165,293 @@ my_ggsave("calib_plot.pdf",
 
 
 
+
+
+
+
+####### TRY A CDF PLOT:
+
+##### Make Plotting Dataframe #####
+q.vec = seq( -1, 1.25, 0.01 )
+ql = as.list(q.vec)
+
+
+z = c(1, 8)
+z0 = c(0, 2)  # not actually using this, but just have it to pass to get_phat_hu
+
+
+Phat.above.vec = lapply( ql,
+                         FUN = function(.q) get_phat_hu(dat = dh,
+                                                        q = .q,
+                                                        z = z,
+                                                        z0 = z0,
+                                                        return.meta = FALSE)[1] )
+
+res = data.frame( q = q.vec,
+                  Est = unlist(Phat.above.vec) )
+
+
+##### Selective Bootstrapping #####
+
+# # look at just the values of q at which Phat jumps
+# #  this will not exceed the number of point estimates in the meta-analysis
+res.short = res[ diff(res$Est) != 0, ]
+
+# @temp only
+#res.short = res.short[1:2,]
+
+phat_ci = function(.dat, .q){
+   #browser()
+   datNest = .dat %>% group_nest(study)
+   
+   boot.res = boot( data = datNest, 
+                    parallel = "multicore",
+                    R = boot.reps, 
+                    statistic = function(original, indices) {
+                       bNest = original[indices,]
+                       b = bNest %>% unnest(data)
+                       
+                       get_phat_hu(dat = b,
+                                   q = .q,
+                                   z = z,
+                                   z0 = z0,
+                                   return.meta = FALSE)[1]
+                    } )
+   
+   # order of stats:
+   # Phat, Phat.ref, Phat - Phat.ref
+   bootCIs = get_boot_CIs(boot.res, n.ests = 1)[[1]]
+   return( data.frame( lo = bootCIs[1], hi = bootCIs[2] ) )
+}
+
+# phat_ci(dh, 0)
+
+# bootstrap a CI for each entry in res.short
+# @RUN ME, BUT WILL TAKE HOURSS
+temp = res.short %>% rowwise() %>%
+   do( phat_ci(.dat = dh, .q = .$q) )
+
+
+temp$q = res.short$q
+temp$Est = 100*temp$Est
+
+# merge this with the full-length res dataframe, merging by Phat itself
+res = merge( res, temp, by.x = "q", by.y = "q")
+
+# # NOT USED?
+# # turn into percentage
+res$Est = 100*res$Est
+res$lo = 100*res$lo
+res$hi = 100*res$hi
+
+# setwd(results.dir)
+# write.csv(res, "npphat_results.csv")
+
+
+# remove last row because CI is NA
+#res = res[ -nrow(res), ]
+
+##### Make Plot #####
+ggplot( data = res,
+        aes( x = q,
+             y = Est ) ) +
+   theme_bw() +
+   
+   # # pooled point estimate
+   # geom_vline( xintercept = exp(mu),
+   #             lty = 2,
+   #             color = "red" ) +
+   
+   # null
+   geom_vline( xintercept = 1,
+               lty = 2,
+               color = "black" ) +
+   
+   # scale_y_continuous(  breaks = seq(0, 100, 10) ) +
+   # # stop x-axis early because last CI is NA
+   # scale_x_continuous(  breaks = seq(0.8, 2, .1) ) +
+   
+   geom_line(lwd=1.2) +
+   
+   xlab("Threshold (RR scale)") +
+   ylab( paste( "Estimated percent of effects above threshold" ) ) +
+   
+   geom_ribbon( aes(ymin=res$lo, ymax=res$hi), alpha=0.15, fill = "black" ) 
+
+
+setwd(results.dir)
+ggsave( "npphat.pdf",
+        width = 9,
+        height = 6 )
+
+setwd(overleaf.dir)
+ggsave( "npphat.pdf",
+        width = 9,
+        height = 6 )
+
+
+
+
+
 ##### RESURRECTED FROM BEFORE:
 
-# ################################## MATHUR ################################## 
-# 
-# ##### Descriptives #####
-# setwd(prepped.data.dir)
-# dm = read.csv("mathur_data_prepped.csv")
-# 
+################################## MATHUR ##################################
+
+# # works but is very imprecise CI:
 # qual.vars = c("qual.y.prox2",
-#               "low.miss",
+#               #"low.miss",
 #               "qual.exch2",
 #               "qual.gen2",
 #               "qual.sdb2",
 #               "qual.prereg2",
-#               "qual.public.data2")
+#               "qual.public.data2"
+#               )
 # 
-# # proportion high on each quality variable
-# colMeans( dm %>% select(qual.vars) )
+# # CI: 36%, 100%
+# qual.vars = c("qual.exch2",
+#               "qual.sdb2")
 # 
-# # sum of ROB metrics for each study (max 4 of 7)
-# apply( dm %>% select(qual.vars), 1, sum )  
+# # CI: 13%, 100%
+# qual.vars = c("qual.y.prox2",
+#               "qual.exch2",
+#               "qual.gen2",
+#               "qual.sdb2")
 # 
+# # CI: 39%, 100%
+# qual.vars = c("qual.exch2",
+#               "qual.y.prox2")
 # 
-# ##### Fit Meta-Regression #####
+# # **95% (70%, 100%)
+# qual.vars = c("qual.exch2")
 # 
-# # BE CAREFUL ABOUT REORDERING OR ADDING VARIABLES HERE - WILL AFFECT BETA'Z BELOW
-# m = robu( logRR ~ #randomized +  # too collinear with exch
-#              qual.y.prox2 +
-#              low.miss +
-#              qual.exch2 +
-#              qual.gen2 +
-#              qual.sdb2 +
-#              qual.prereg2 +
-#              qual.public.data2,
-#           data = dm, 
-#           studynum = authoryear,  # ~~~ clustering
-#           var.eff.size = varlogRR )
-# 
-# t2 = m$mod_info$tau.sq
-# 
-# # linear predictor for being low on all ROB criteria
-# # ~~~ report this somewhere?
-# exp( sum(m$b.r[2:7]) )
-# 
-# # bm :)
-# 
-# ##### Consider a Hypothetical Study with Optimal Risks of Bias #####
-# # design matrix of only the moderators
-# Z = as.matrix( dm %>% select(qual.vars) )
-# head(Z)
-# 
-# # confirm same ordering
-# colnames(Z); m
-# 
-# # moderator coefficients
-# # exclude intercept
-# bhat = as.matrix( m$b.r[ 2:( length(qual.vars) + 1 ) ], ncol = 1 )
-# 
-# dm$linpredZ = Z %*% bhat
-# 
-# 
-# ##### Try Shifting the yis Themselves to Use Existing Package and Sims #####
-# dm$yi.shift = dm$logRR - dm$linpredZ  # shifted to have moderators set to 0
-# ens.shift = MetaUtility::calib_ests(yi = dm$yi.shift,
-#                                     sei = sqrt(dm$varlogRR) )
-# 
+# # **91% (25%, 100%)
+# qual.vars = c("qual.y.prox2",
+#               #"low.miss",
+#               "qual.exch2",
+#               "qual.gen2",
+#               "qual.sdb2"
+#               #"qual.prereg2",
+#               #"qual.public.data2"
+# )
+
+
+##### ***Social norms in exchangeable studies vs.
+#  studies at low risk on more characteristics (exch, gen, sdb, prox)
+# 93% (63%, 100%)
+qual.vars = c("qual.exch2",
+              "x.soc.norm" )
+
+# 90% (11%, 100%)
+qual.vars = c("qual.y.prox2",
+              "qual.exch2",
+              "qual.gen2",
+              "qual.sdb2",
+              "x.soc.norm")
+
+
+#  studies at low risk on more characteristics (exch, gen, sdb, prox)
+# 70% (48%, 87%)
+qual.vars = c("x.suffer" )
+
+# 97% 
+qual.vars = c("qual.y.prox2",
+              "qual.exch2",
+              "qual.gen2",
+              "qual.sdb2",
+              "x.suffer")
+
+
+##### Descriptives #####
+setwd(prepped.data.dir)
+dm = read.csv("mathur_data_prepped.csv")
+# remove ones missing the quality variables
+dm = dm %>% drop_na(qual.vars)
+dim(dm)  # 77 had no missing data
+# the 23 exclusions are all due to studies that didn't report amount of missing data)
+
+
+# proportion high on each quality variable
+colMeans( dm %>% select(qual.vars) )
+colSums( dm %>% select(qual.vars) )
+
+
+# sum of graphic and ROB metrics for each study (max 4 of 7)
+dm$qualSum = apply( dm %>% select(qual.vars), 1, sum )
+
+# studies with graphic content AND fulfilling all ROB criteria
+table(dm$qualSum == length(qual.vars))
+
+##### Fit Meta-Regression #####
+
+
+
+
+( phat = get_phat_mathur(.dat = dm, .return.meta = TRUE) )
+
+
+exp(phat[[1]]$b.r[2])
+exp(phat[[1]]$reg_table$CI.L[2])
+exp(phat[[1]]$reg_table$CI.U[2])
+
+###### Sim study code
+
+# get the boot fns
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study")
+source("helper_MRM.R")
+source("bootfuns.R")
+
+# nest by cluster in case we need to do cluster bootstrap
+# now has one row per cluster
+# works whether there is clustering or not
+# because without clustering, the clusters are 1:nrow(data)
+
+d = dm
+d$cluster = d$authoryear
+
+dNest = d %>% group_nest(cluster)
+
+# @INCREASE LATER
+boot.reps = 500
+
+# this is just the resampling part, not the CI estimation
+boot.res = my_boot( data = dNest, 
+                    parallel = "multicore",
+                    R = boot.reps, 
+                    statistic = function(original, indices) {
+                       
+
+                          bNest = original[indices,]
+                          b = bNest %>% unnest(data)
+                       
+                       tryCatch({
+    
+                          return( get_phat_mathur2(b) )
+                          # 
+                          # # return the stats of interest
+                          # # order of stats has to match indices in CI tryCatch loops below
+                          # # and in returned results because of bt.means and bt.sds
+                          # c( as.numeric(b.stats["Phat"]),
+                          #    as.numeric(b.stats["Phat.ref"]),
+                          #    as.numeric(b.stats["Phat.diff"]),
+                          #    as.numeric(b.stats["t2"]),
+                          #    truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
+                          # )
+                       }, error = function(err){
+                          
+                          return( rep(NA, 1) )
+                       })
+                       
+                    } )
+boot.res
+
+
+# boot diagnostics
+bt.means = as.numeric( colMeans(boot.res$t, na.rm = TRUE) )
+bt.sds = apply( boot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
+
+CI = boot.ci(boot.res, type = "bca", index = 1)
+# put in nice vector format
+( PhatBootCIs = c( CI[[4]][4], CI[[4]][5] ) )
+
+
+

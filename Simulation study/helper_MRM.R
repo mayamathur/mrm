@@ -382,7 +382,8 @@ sim_data2 = function( k, # total number of studies
   # k not divisible by m: assign each observation to a cluster chosen at random (unbalanced clusters)
   if ( m < k & (k %% m != 0) ) cluster = sample( 1:m, size = k, replace = TRUE )
   # k divisible by m: assign observations to clusters in a balanced way
-  if ( m < k & (k %% m == 0) ) cluster = rep(1:k, each = k/m)
+  if ( m < k & (k %% m == 0) ) cluster = rep(1:m, each = k/m)
+
   if (m > k) stop("m must be <= k")
   
   cluster = sort(cluster)

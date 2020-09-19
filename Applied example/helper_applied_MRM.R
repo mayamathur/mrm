@@ -1,6 +1,18 @@
 
 # code audited 2020-6-17
 
+# recode for ease of analysis
+binary_recode = function(x,
+                         yes.level){
+  
+  x2 = rep(NA, length(x))
+  x2[ !is.na(x) ] = 0
+  x2[ !is.na(x) & x == yes.level ] = 1
+  x2
+}
+
+
+
 ########################### FN: PHAT FOR META-REGRESSION ###########################
 
 get_phat_hu = function(dat,  # dataset
@@ -71,58 +83,123 @@ get_phat_hu = function(dat,  # dataset
 
 
 
-########################### FN: PHAT FOR META-REGRESSION ###########################
 
-get_phat_ritchie = function(dat,  # dataset
-                            q,  # threshold of interest
-                            z,  # level of interest for effect modifiers
-                            z0,  # reference level of effect modifiers
-                            return.meta = FALSE){  # should the meta-regression results be returned? 
+get_phat_mathur = function(.dat,
+                           .return.meta = FALSE) {
+  # BE CAREFUL ABOUT REORDERING OR ADDING VARIABLES HERE - WILL AFFECT BETA'Z BELOW
   
-  ##### Fit Meta-Regression #####
-  # regress effect size on age at F/U
-  mod = robu( yi ~ age.fu,
-              data = dat, 
-              studynum = study,  
-              var.eff.size = vi )
-  # coefficient estimate for age at F/U
-  bhat = mod$b.r[2]
-  # estimated residual heterogeneity
-  t2 = mod$mod_info$tau.sq
+  string = paste( c( "logRR", paste(qual.vars, collapse = " + ") ), collapse = " ~ " )
   
-  # calculate beta_1'Z
-  dat$linpredZ = c(bhat) * dat$age.fu
+  m = robu( eval( parse(text = string)),
+            data = .dat,
+            studynum = authoryear,  # ~~~ clustering
+            var.eff.size = varlogRR )
   
-  ##### Phat(z) #####
-  # calculate point estimates shifted to "set" effect modifiers to 0
-  # i.e., Equation (S.2) in Appendix
-  dat$yi.shift = dat$yi - dat$linpredZ  # shifted to have moderators set to 0
+  t2 = m$mod_info$tau.sq
   
-  # # the calib_ests version
-  # ens.shift = MetaUtility::calib_ests(yi = dat$yi.shift,
-  #                                     sei = sqrt(dat$vi) )
-  # the meta-regressive version
-  ens.shift = c(mod$b.r[1]) + sqrt( c(t2) / ( c(t2) + dat$vi) ) * ( dat$yi.shift - c(mod$b.r[1]) )
+  # linear predictor for being low on all ROB criteria
+  # ~~~ report this somewhere?
+  exp( sum(m$b.r[2:7]) )
   
-  # calculate threshold shifted to "set" effect modifiers to 0
-  q.shift = q - (bhat*z)
+  # bm :)
   
-  # sample proportion of shifted estimates greater than shifted threshold
-  Phat = mean( ens.shift > c(q.shift) )
+  ##### Consider a Hypothetical Study with Optimal Risks of Bias #####
+  # design matrix of only the moderators
+  Z = as.matrix( .dat %>% select(qual.vars) )
+  head(Z)
   
-  ##### Phat(z0) #####
-  # reference level 
-  q.shift.ref = q - (bhat*z0)
-  Phat.ref = mean( ens.shift > c(q.shift.ref) )
+  # confirm same ordering
+  colnames(Z); m
+  
+  # moderator coefficients
+  # exclude intercept
+  bhat = as.matrix( m$b.r[ 2:( length(qual.vars) + 1 ) ], ncol = 1 )
+  int = m$b.r[1]  # intercept
+  
+  .dat$linpredZ = Z %*% bhat
+  
+  # linear predictor for each study but without intercept
+  exp(.dat$linpredZ)
+  
+  
+  ##### Shift the yis Themselves to Use Existing Package and Sims #####
+  .dat$yi.shift = .dat$logRR - .dat$linpredZ  # shifted to have moderators set to 0
+  
+  # calibrated estimate, shifted to set effect modifiers to 0
+  calib.shift = c(int) + sqrt( c(t2) / ( c(t2) + .dat$varlogRR) ) * ( .dat$yi.shift - c(int) )
+  
+  # threshold, shifted to set effect modifiers to 0
+  # would need to be modified for other datasets
+  q = log(1.1)
+  q.shift = q - ( sum(bhat) )  # sum because levels of interest are always 1
+  # note: below assumes we are considering effects ABOVE the threshold
+  Phat = mean( calib.shift > c(q.shift) )
   
   ##### Return Results #####
-  if ( return.meta == FALSE){
-    return( c(Phat, Phat.ref, Phat - Phat.ref) )
+  if ( .return.meta == FALSE){
+    return( Phat )
   } else {
-    return( list(mod,
-                 c(Phat, Phat.ref, Phat - Phat.ref)) )
+    return( list( m,
+                  Phat) )
   }
+
 }
+
+
+
+
+########################### FN: PHAT FOR META-REGRESSION ###########################
+
+# get_phat_ritchie = function(dat,  # dataset
+#                             q,  # threshold of interest
+#                             z,  # level of interest for effect modifiers
+#                             z0,  # reference level of effect modifiers
+#                             return.meta = FALSE){  # should the meta-regression results be returned? 
+#   
+#   ##### Fit Meta-Regression #####
+#   # regress effect size on age at F/U
+#   mod = robu( yi ~ age.fu,
+#               data = dat, 
+#               studynum = study,  
+#               var.eff.size = vi )
+#   # coefficient estimate for age at F/U
+#   bhat = mod$b.r[2]
+#   # estimated residual heterogeneity
+#   t2 = mod$mod_info$tau.sq
+#   
+#   # calculate beta_1'Z
+#   dat$linpredZ = c(bhat) * dat$age.fu
+#   
+#   ##### Phat(z) #####
+#   # calculate point estimates shifted to "set" effect modifiers to 0
+#   # i.e., Equation (S.2) in Appendix
+#   dat$yi.shift = dat$yi - dat$linpredZ  # shifted to have moderators set to 0
+#   
+#   # # the calib_ests version
+#   # ens.shift = MetaUtility::calib_ests(yi = dat$yi.shift,
+#   #                                     sei = sqrt(dat$vi) )
+#   # the meta-regressive version
+#   ens.shift = c(mod$b.r[1]) + sqrt( c(t2) / ( c(t2) + dat$vi) ) * ( dat$yi.shift - c(mod$b.r[1]) )
+#   
+#   # calculate threshold shifted to "set" effect modifiers to 0
+#   q.shift = q - (bhat*z)
+#   
+#   # sample proportion of shifted estimates greater than shifted threshold
+#   Phat = mean( ens.shift > c(q.shift) )
+#   
+#   ##### Phat(z0) #####
+#   # reference level 
+#   q.shift.ref = q - (bhat*z0)
+#   Phat.ref = mean( ens.shift > c(q.shift.ref) )
+#   
+#   ##### Return Results #####
+#   if ( return.meta == FALSE){
+#     return( c(Phat, Phat.ref, Phat - Phat.ref) )
+#   } else {
+#     return( list(mod,
+#                  c(Phat, Phat.ref, Phat - Phat.ref)) )
+#   }
+# }
 
 
 ############################# FN: GET BOOT CIs FOR A VECTOR OF ESTIMATES #############################
