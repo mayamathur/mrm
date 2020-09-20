@@ -11,9 +11,61 @@ binary_recode = function(x,
   x2
 }
 
+########################### FNS: PHAT CI ONLY (FOR 1-CDF PLOTS) ###########################
+
+# return just the CI for Hu example (for making the 1-CDF plot)
+phat_ci_hu = function(.dat, .q){
+  datNest = .dat %>% group_nest(study)
+  
+  boot.res = boot( data = datNest, 
+                   parallel = "multicore",
+                   R = boot.reps, 
+                   statistic = function(original, indices) {
+                     bNest = original[indices,]
+                     b = bNest %>% unnest(data)
+                     
+                     get_phat_hu(dat = b,
+                                 q = .q,
+                                 z = z,
+                                 z0 = z0,
+                                 return.meta = FALSE)[1]
+                   } )
+  
+  # order of stats:
+  # Phat, Phat.ref, Phat - Phat.ref
+  bootCIs = get_boot_CIs(boot.res, n.ests = 1)[[1]]
+  return( data.frame( lo = bootCIs[1], hi = bootCIs[2] ) )
+}
+
+# phat_ci_hu(dh, 0)
 
 
-########################### FN: PHAT FOR META-REGRESSION ###########################
+phat_ci_mathur = function(.dat, .q, .covars){
+  datNest = .dat %>% group_nest(authoryear)
+  
+  boot.res = boot( data = datNest, 
+                   parallel = "multicore",
+                   R = boot.reps, 
+                   statistic = function(original, indices) {
+                     bNest = original[indices,]
+                     b = bNest %>% unnest(data)
+                     
+                     get_phat_mathur(.dat = b,
+                                     .q = .q,
+                                     .covars = .covars)[1]
+                   } )
+  
+  # order of stats:
+  # Phat, Phat.ref, Phat - Phat.ref
+  bootCIs = get_boot_CIs(boot.res, n.ests = 1)[[1]]
+  return( data.frame( lo = bootCIs[1], hi = bootCIs[2] ) )
+}
+
+# phat_ci_mathur( .dat = dm, .q = log(1.1), .covars = covars[[1]] )
+
+
+
+########################### FNS: PHAT FOR META-REGRESSION ###########################
 
 get_phat_hu = function(dat,  # dataset
                        q,  # threshold of interest
@@ -85,10 +137,11 @@ get_phat_hu = function(dat,  # dataset
 
 
 get_phat_mathur = function(.dat,
+                           .covars,
+                           .q,
                            .return.meta = FALSE) {
-  # BE CAREFUL ABOUT REORDERING OR ADDING VARIABLES HERE - WILL AFFECT BETA'Z BELOW
-  
-  string = paste( c( "logRR", paste(qual.vars, collapse = " + ") ), collapse = " ~ " )
+
+  string = paste( c( "logRR", paste(.covars, collapse = " + ") ), collapse = " ~ " )
   
   m = robu( eval( parse(text = string)),
             data = .dat,
@@ -97,15 +150,10 @@ get_phat_mathur = function(.dat,
   
   t2 = m$mod_info$tau.sq
   
-  # linear predictor for being low on all ROB criteria
-  # ~~~ report this somewhere?
-  exp( sum(m$b.r[2:7]) )
-  
-  # bm :)
   
   ##### Consider a Hypothetical Study with Optimal Risks of Bias #####
   # design matrix of only the moderators
-  Z = as.matrix( .dat %>% select(qual.vars) )
+  Z = as.matrix( .dat %>% select(.covars) )
   head(Z)
   
   # confirm same ordering
@@ -113,7 +161,7 @@ get_phat_mathur = function(.dat,
   
   # moderator coefficients
   # exclude intercept
-  bhat = as.matrix( m$b.r[ 2:( length(qual.vars) + 1 ) ], ncol = 1 )
+  bhat = as.matrix( m$b.r[ 2:( length(.covars) + 1 ) ], ncol = 1 )
   int = m$b.r[1]  # intercept
   
   .dat$linpredZ = Z %*% bhat
@@ -130,8 +178,7 @@ get_phat_mathur = function(.dat,
   
   # threshold, shifted to set effect modifiers to 0
   # would need to be modified for other datasets
-  q = log(1.1)
-  q.shift = q - ( sum(bhat) )  # sum because levels of interest are always 1
+  q.shift = .q - ( sum(bhat) )  # sum because levels of interest are always 1
   # note: below assumes we are considering effects ABOVE the threshold
   Phat = mean( calib.shift > c(q.shift) )
   
@@ -225,11 +272,13 @@ my_ggsave = function(name,
   setwd(.results.dir)
   ggsave( name,
           width = width, 
-          height = width)
+          height = width,
+          units = "in")
   
   setwd(.overleaf.dir)
   ggsave( name,
           width = width, 
-          height = width)
+          height = width,
+          units = "in")
 }
 

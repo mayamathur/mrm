@@ -1,3 +1,32 @@
+
+# check on sims are they run
+
+setwd("~/Desktop")
+s = read.csv("stitched.csv")
+dim(s)
+length(unique(s$scen.name))
+
+agg  = s %>% group_by(scen.name, clustered) %>%
+  summarise( mean(is.na(PhatLo)),
+             mean(is.na(DiffLo)),
+             
+             .TheoryP = TheoryP[1],
+             PhatMn = mean(Phat),
+             PhatRelBias = mean(Phat)/.TheoryP,
+             CoverPhat = mean(CoverPhat, na.rm = TRUE),
+             
+             .TheoryDiff = TheoryDiff[1],
+             DiffMn = mean(Diff),
+             DiffRelBias = mean(Diff)/.TheoryDiff,
+             CoverDiff = mean(CoverDiff, na.rm = TRUE)
+             
+  )
+
+data.frame(agg)
+
+mean(agg$CoverDiff); min(agg$CoverDiff)
+mean(agg$CoverPhat); min(agg$CoverPhat)
+
 # 
 # # "**" = result reported in paper
 # 

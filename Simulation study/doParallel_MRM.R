@@ -209,10 +209,8 @@ if ( run.local == TRUE ) {
   
   # full set of scenarios
   # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
-  # full set of scenarios
-  # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
   ( scen.params = make_scen_params( method = "bt.smart",
-                                    calib.method = c("MR bt both correct", "MR", "DL"),
+                                    calib.method = c("MR", "DL"),
                                     
                                     k = rev(c(10, 20, 50, 100, 150)),
                                     m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
@@ -295,7 +293,7 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  scen = 1
+  scen = 90
 }
 
 
