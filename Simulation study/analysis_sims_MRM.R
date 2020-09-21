@@ -3,8 +3,8 @@
 
 setwd("~/Desktop")
 s = read.csv("stitched.csv")
-dim(s)
-length(unique(s$scen.name))
+dim(s)  # 471600 on Sherlock
+length(unique(s$scen.name))  # 1014 on Sherlock (of 1600)
 
 agg  = s %>% group_by(scen.name, clustered) %>%
   summarise( mean(is.na(PhatLo)),
@@ -18,7 +18,9 @@ agg  = s %>% group_by(scen.name, clustered) %>%
              .TheoryDiff = TheoryDiff[1],
              DiffMn = mean(Diff),
              DiffRelBias = mean(Diff)/.TheoryDiff,
-             CoverDiff = mean(CoverDiff, na.rm = TRUE)
+             CoverDiff = mean(CoverDiff, na.rm = TRUE),
+             
+             EstVarRelBias = mean(EstVar)/V
              
   )
 
@@ -26,6 +28,9 @@ data.frame(agg)
 
 mean(agg$CoverDiff); min(agg$CoverDiff)
 mean(agg$CoverPhat); min(agg$CoverPhat)
+mean(agg$PhatRelBias); min(agg$PhatRelBias); max(agg$PhatRelBias)
+mean(agg$EstVarRelBias); min(agg$EstVarRelBias);  max(agg$EstVarRelBias)
+
 
 # 
 # # "**" = result reported in paper

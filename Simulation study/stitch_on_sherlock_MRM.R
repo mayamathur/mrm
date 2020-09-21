@@ -76,7 +76,7 @@ scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/ov
 missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
                 "/home/groups/manishad/MRM/sim_results",
                 .name.prefix = "long",
-                .max.sbatch.num = 1440)
+                .max.sbatch.num = 16000)
 # 1440
 
 path = "/home/groups/manishad/MRM"

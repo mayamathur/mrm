@@ -9,19 +9,23 @@ source("helper_MRM.R")
 
 
 library(dplyr)
+library(ICC)
 
-d = sim_data(k = 100,
-             b0 = -1,
-             bc = 0.5, 
-             bb = 1, 
-             V = 0.04,
-             muN = 100,
-             minN = 50,
-             sd.w = 1,
-             true.effect.dist = "normal")
+d = sim_data2(k = 100,
+              m = 50,
+              b0 = -1,
+              bc = 0.5, 
+              bb = 1, 
+              V = 0.04,
+              Vzeta = 0.02,
+              muN = 100,
+              minN = 50,
+              sd.w = 1,
+              true.effect.dist = "normal")
+
 
 # remove the underlying parameters that would not be in observed data
-d = d %>% select(yi, vyi, Zc, Zb)
+d = d %>% select(cluster, yi, vyi, Zc, Zb)
 
 # save data
 setwd(reprex.dir)
