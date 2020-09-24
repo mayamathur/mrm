@@ -35,15 +35,20 @@ my_summarise = function(dat){
                             
                             PhatBias = mean(PhatBias, na.rm = TRUE),
                             Phat2Bias = mean(Phat2Bias, na.rm = TRUE),
+                            LogitPhat2Bias = mean(LogitPhat2Bias, na.rm = TRUE),
+                            
                             
                             PhatRelBias = mean(PhatRelBias, na.rm = TRUE),
                             Phat2RelBias = mean(Phat2RelBias, na.rm = TRUE),
+                            LogitPhat2RelBias = mean(LogitPhat2RelBias, na.rm = TRUE),
                             
                             PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
                             Phat2AbsBias = mean(Phat2AbsBias, na.rm = TRUE),
+                            LogitPhat2AbsBias = mean(LogitPhat2AbsBias, na.rm = TRUE),
                             
                             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
                             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
+                            PBadCoverPhat = mean(CoverPhat<0.85),
                             
                             DiffBias = mean(DiffBias, na.rm = TRUE),
                             Diff2Bias = mean(Diff2Bias, na.rm = TRUE),
@@ -56,6 +61,7 @@ my_summarise = function(dat){
                             
                             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
                             MinCoverDiff = min(CoverDiff, na.rm = TRUE),
+                            PBadCoverDiff = mean(CoverDiff<0.85),
                             
                             # for comparison
                             EstMeanRelBias = mean(EstMeanRelBias, na.rm = TRUE),
@@ -141,6 +147,8 @@ prop_stronger_mr = function(dat,
     # works whether there is clustering or not
     datNest = dat %>% group_nest(cluster)
     
+    browser()
+    
     tryCatch({
       boot.res = my_boot( data = datNest, 
                           parallel = "multicore",
@@ -174,14 +182,14 @@ prop_stronger_mr = function(dat,
       
       # correct the coefficient estimates
       if ( calib.method %in% c("MR bt mn correct", "MR bt both correct") ) {
-        bhat0 = bhat0 - bt.means[1]
-        bhatc = bhatc - bt.means[2]
-        bhatb = bhatb - bt.means[3]
+        bhat0 = bhat0 - bt.bias[1]
+        bhatc = bhatc - bt.bias[2]
+        bhatb = bhatb - bt.bias[3]
       }
       
       # correct the variance estimate
       if ( calib.method %in% c("MR bt var correct", "MR bt both correct") ) {
-        t2 = t2 - bt.means[4]
+        t2 = t2 - bt.bias[4]
       }
       
       ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
@@ -1068,9 +1076,11 @@ my_boot = function (data, statistic, R, sim = "ordinary", stype = c("i",
   nulls = sapply( res, is.null)
   res = res[ !nulls ]
   t.star <- matrix(, RR, length(t0))
-  
+  # if failed reps return NAs, then R = original RR still
   # without this, boot.CI gets confused about number of replicates
   R = RR
+  
+  #mean(is.na(t.star))
   # ~~~~~ end of MM additions
   
   

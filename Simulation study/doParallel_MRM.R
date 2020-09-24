@@ -34,7 +34,7 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 50
+  sim.reps = 500
   # used boot.reps=s5,000 in NPPhat
   # just reduced to 1,000
   # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
@@ -176,35 +176,35 @@ if ( run.local == TRUE ) {
   #                                   start.at = 1 ) )
   
   
-  # debug cluster error
-  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
-                                    calib.method = c("MR"),
-                                    #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-                                    k = c(100),
-                                    m = c(100, 50), # @NEW,
-                                    #m = 100,
-                                    
-                                    b0 = 0, # intercept
-                                    bc = 0, # effect of continuous moderator
-                                    bb = 0, # effect of binary moderator
-                                    
-                                    zc.star = 0.5,  # level of moderator to consider
-                                    zb.star = 1,
-                                    
-                                    zc.ref = 2,  # comparison levels of moderator to consider
-                                    zb.ref = 0,
-                                    
-                                    V = c( .2 ), # residual variance
-                                    Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
-                                    #Vzeta = 0,
-                                    
-                                    muN = NA,  # just a placeholder; to be filled in later
-                                    minN = c(50),
-                                    sd.w = c(1),
-                                    tail = "above",
-                                    true.effect.dist = c("normal"),
-                                    TheoryP = c(0.2),
-                                    start.at = 1 ) )
+  # # debug cluster error
+  # ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
+  #                                   calib.method = c("MR"),
+  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+  #                                   k = c(150),
+  #                                   m = c(75), # @NEW,
+  #                                   #m = 100,
+  #                                   
+  #                                   b0 = 0, # intercept
+  #                                   bc = 0, # effect of continuous moderator
+  #                                   bb = 0, # effect of binary moderator
+  #                                   
+  #                                   zc.star = 0.5,  # level of moderator to consider
+  #                                   zb.star = 1,
+  #                                   
+  #                                   zc.ref = 2,  # comparison levels of moderator to consider
+  #                                   zb.ref = 0,
+  #                                   
+  #                                   V = c( .2 ), # residual variance
+  #                                   Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
+  #                                   #Vzeta = 0,
+  #                                   
+  #                                   muN = NA,  # just a placeholder; to be filled in later
+  #                                   minN = c(50),
+  #                                   sd.w = c(1),
+  #                                   tail = "above",
+  #                                   true.effect.dist = c("normal"),
+  #                                   TheoryP = c(0.2),
+  #                                   start.at = 1 ) )
   
   
   # full set of scenarios
@@ -240,7 +240,6 @@ if ( run.local == TRUE ) {
                                     true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
                                     TheoryP = c(0.05, 0.1, 0.2, 0.5),
                                     start.at = 1 ) )
-  
   
   # define clustering scenarios
   # m = -99 will be no clustering
@@ -293,7 +292,8 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  scen = 90
+  scen = 261
+  data.frame(scen.params %>% filter(scen.name == scen))
 }
 
 
@@ -391,6 +391,8 @@ if ( run.local == TRUE ) {
                                                              zc.ref = p$zc.ref,
                                                              zb.ref = p$zb.ref,
                                                              calib.method = p$calib.method )
+                                  # @TEMP ONLY - FAKE ERROR IN 50% OF ITERATES
+                                  #if ( rbinom( n=1, size=2, prob = .2) == 1 ) stop("Fake error")
                                   
                                   # return the stats of interest
                                   # order of stats has to match indices in CI tryCatch loops below
@@ -408,9 +410,11 @@ if ( run.local == TRUE ) {
                                 
                               } )
           boot.res
+          # bm
 
           
           # boot diagnostics
+          bt.pfails =  as.numeric( colMeans( is.na(boot.res$t) ) )  # proportion of boot reps that failed (NAs)
           bt.means = as.numeric( colMeans(boot.res$t, na.rm = TRUE) )
           bt.sds = apply( boot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
           
@@ -458,6 +462,7 @@ if ( run.local == TRUE ) {
           truncLogitBootCIs <<- c(NA, NA)
           bt.means <<- rep(NA, n.ests)
           bt.sds <<- rep(NA, n.ests)
+          bt.pfails <<- rep(NA, n.ests)
           #boot.median <<- NA
           Note <<- paste("Resampling failed completely: ", err$message, sep="")
           #browser()
@@ -475,6 +480,7 @@ if ( run.local == TRUE ) {
         truncLogitBootCIs <<- c(NA, NA)
         bt.means = rep(NA, n.ests)
         bt.sds = rep(NA, n.ests)
+        bt.pfails = rep(NA, n.ests)
         btRows = NA
         btNClusters = NA
       }
@@ -514,6 +520,8 @@ if ( run.local == TRUE ) {
         PhatHi = PhatBootCIs[2],
         PhatBtMn = bt.means[1],
         PhatBtSD = bt.sds[1],
+        PhatBtFail = bt.pfails[1],
+        # bm
         
         LogitPhatBtMn = bt.means[5],
         truncLogitLo = truncLogitBootCIs[1],
@@ -525,6 +533,7 @@ if ( run.local == TRUE ) {
         PhatRefHi = PhatRefBootCIs[2],
         PhatRefBtMn = bt.means[2],
         PhatRefBtSD = bt.sds[2],
+        PhatRefBtFail = bt.pfails[2],
         
         # for the difference
         Diff = PhatDiff,
@@ -532,6 +541,7 @@ if ( run.local == TRUE ) {
         DiffHi = DiffBootCIs[2],
         DiffBtMn = bt.means[3],
         DiffBtSD = bt.sds[3],
+        DiffBtFail = bt.pfails[3],
         
         # method of calculating CI
         Method = p$method,

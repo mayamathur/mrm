@@ -43,7 +43,7 @@ write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
 
 # are we there yet?
 dim(s)
-length(unique(s$scen.name))
+length(unique(s$scen.name))  # of 1600
 
 
 ##### Quick Look at Results #####
@@ -77,7 +77,6 @@ missed.nums = sbatch_not_run( "/home/groups/manishad/MRM/sim_results/long",
                 "/home/groups/manishad/MRM/sim_results",
                 .name.prefix = "long",
                 .max.sbatch.num = 16000)
-# 1440
 
 path = "/home/groups/manishad/MRM"
 

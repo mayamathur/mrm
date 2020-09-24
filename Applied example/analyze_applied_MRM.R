@@ -7,11 +7,16 @@ library(dplyr)
 library(tidyverse)
 library(testthat)
 library(robumeta)
-library(MetaUtility)
+#library(MetaUtility)
 library(boot)
 library(metafor)
 library(ICC)
 library(ggplot2)
+
+# use development version of prop_stronger because clustering addition
+#  isn't yet on CRAN
+setwd("~/Dropbox/Personal computer/Independent studies/MetaUtility R package/MetaUtility/R")
+source("functions.R")
 
 # should we redo the multi-hour bootsrapping for the pointwise CIs on the CDF plots?
 bootstrap.plots.from.scratch = FALSE
@@ -70,7 +75,8 @@ q = .2
                        dat = dh,
                        R = boot.reps,
                        yi.name = "yi",
-                       vi.name = "vi") )
+                       vi.name = "vi",
+                       cluster.name = "StudyID") )
 
 # sanity check
 ens = calib_ests(dh$yi,
