@@ -8,11 +8,11 @@ rm(list=ls())
 library(dplyr)
 library(testthat)
 
-stitched.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-23 for RSM_1"
+stitched.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26"
 
 
 # where to put the merged and prepped results
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-23 for RSM_1"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26"
 
 # helper fns, such as truncLogit
 setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study")
@@ -24,14 +24,14 @@ source("helper_MRM.R")
 setwd(stitched.data.dir)
 s = read.csv("stitched_main_sims.csv")
 
-dim(s)
-length(unique(s$scen.name))  # of 1600 total
+nrow(s)/(1600)
+length(unique(s$scen.name))/1600  # of 1600 total
 
 
-# minutes per doParallel
-# median: 2.57 min
-# max: 15 min
-summary(s$repTime) / 60
+# time per doParallel with 500 reps/file
+# median: 1/2 hr
+# max: 4 hrs
+summary(s$repTime)/60
 
 
 # ##### Clean Up Bootstrapping Errors #####
@@ -51,92 +51,6 @@ summary(s$repTime) / 60
 #   summarise( mean( !is.na(Note2) ) )
 
 
-##### Outcome and Parameter Variables #####
-# "outcome" variables used in analysis
-analysis.vars = c( 
-  
-  "EstMean",
-  "EstVar",
-  
-  "Phat",
-  
-  "LogitPhatBtMn",
-  
-  "TheoryP.ref",
-  "PhatRef", 
-  
-  "TheoryDiff",
-  "Diff",
-  
-  "CoverPhat",
-  "CoverPhatRef",
-  "CoverDiff",
-  
-  "PhatCIWidth",
-  "PhatRefCIWidth",
-  "DiffCIWidth",
-  
-  ##### variables to be created in mutate below:
-  
-  "PhatBias",
-  "Phat2Bias",
-  "LogitPhat2Bias",
-  "DiffBias",
-  "Diff2Bias",
-  
-  "PhatAbsBias",
-  "Phat2AbsBias",
-  "LogitPhat2AbsBias",
-  "DiffAbsBias",
-  "Diff2AbsBias",
-  
-  #   "PhatBias",
-  #   "Phat2Bias",
-  #   "LogitPhatBias",
-  #   "DiffBias",
-  
-  "PhatRelBias",
-  "Phat2RelBias",
-  "LogitPhat2RelBias",
-  "DiffRelBias",
-  "Diff2RelBias",
-  
-  # diagnostics regarding meta-analysis estimates
-  "EstMeanRelBias",
-  "EstMeanAbsBias",
-  
-  "EstVarAbsBias",
-  "EstVarRelBias",
-  
-  # diagnostics regarding bootstraps
-  "PhatBtMn",
-  "PhatEmpSD",
-  "PhatBtSD",
-  
-  "LogitPhatBtMn",
-  
-  "DiffBtMn",
-  "DiffEmpSD",
-  "DiffBtSD"
-)
-
-
-
-# variables that define the scenarios
-param.vars = c("scen.name",
-               "Method",
-               "calib.method",
-               "calib.method.pretty",
-               "k",
-               "m",
-               "V",
-               "Vzeta",
-               "minN",
-               "true.effect.dist",
-               "TheoryP")
-
-
-################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
 # bias-corrected Phat and Diff
 # using the bootstrap mean
@@ -146,46 +60,48 @@ s$LogitPhat2 = s$LogitPhat - ( s$LogitPhatBtMn - s$LogitPhat )
 s$Diff2 = s$Diff - (s$DiffBtMn - s$Diff)
 
 # IMPORTANT NOTE: if you add variables here, need to add them to analysis.vars
+#  inside make_agg_data
 #  vector above so that they are grouped in the dplyr work below
 s3 = s %>%
   # iterate-level states:
   mutate( 
     
-          PhatBias = (Phat - TheoryP),
-          Phat2Bias = (Phat2 - TheoryP),
-          # not doing LogitPhat on its own because redundant with Phat itself
-          LogitPhat2Bias = ( expit(LogitPhat2) - TheoryP ),
-          
-          DiffBias = (Diff - TheoryDiff),
-          Diff2Bias = (Diff2 - TheoryDiff),
-          
-          PhatAbsBias = abs(Phat - TheoryP),
-          Phat2AbsBias = abs(Phat2 - TheoryP),
-          # not doing LogitPhat on its own because redundant with Phat itself
-          LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP),
-          
-          DiffAbsBias = abs(Diff - TheoryDiff),
-          Diff2AbsBias = abs(Diff2 - TheoryDiff),
-          
-          # @note that these are relative ABSOLUTE bias
-          PhatRelBias = PhatAbsBias/TheoryP,
-          Phat2RelBias = Phat2AbsBias/TheoryP,
-          LogitPhat2RelBias = LogitPhat2AbsBias/TheoryP,
-          
-          DiffRelBias = DiffAbsBias/TheoryDiff,
-          Diff2RelBias = Diff2AbsBias/TheoryDiff,
-          
-          # diagnostics
-          EstMeanAbsBias = abs(EstMean - TrueMean),
-          EstMeanRelBias = EstMeanAbsBias / TrueMean,
-          
-          EstVarAbsBias = abs(EstVar - TrueVar),
-          EstVarRelBias = EstVarAbsBias / TrueVar )
+    PhatBias = (Phat - TheoryP),
+    Phat2Bias = (Phat2 - TheoryP),
+    # not doing LogitPhat on its own because redundant with Phat itself
+    LogitPhat2Bias = ( expit(LogitPhat2) - TheoryP ),
+    
+    DiffBias = (Diff - TheoryDiff),
+    Diff2Bias = (Diff2 - TheoryDiff),
+    
+    PhatAbsBias = abs(Phat - TheoryP),
+    Phat2AbsBias = abs(Phat2 - TheoryP),
+    # not doing LogitPhat on its own because redundant with Phat itself
+    LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP),
+    
+    DiffAbsBias = abs(Diff - TheoryDiff),
+    Diff2AbsBias = abs(Diff2 - TheoryDiff),
+    
+    # @note that these are relative ABSOLUTE bias
+    PhatRelBias = PhatAbsBias/TheoryP,
+    Phat2RelBias = Phat2AbsBias/TheoryP,
+    LogitPhat2RelBias = LogitPhat2AbsBias/TheoryP,
+    
+    DiffRelBias = DiffAbsBias/TheoryDiff,
+    Diff2RelBias = Diff2AbsBias/TheoryDiff,
+    
+    # diagnostics
+    EstMeanAbsBias = abs(EstMean - TrueMean),
+    EstMeanRelBias = EstMeanAbsBias / TrueMean,
+    
+    EstVarAbsBias = abs(EstVar - TrueVar),
+    EstVarRelBias = EstVarAbsBias / TrueVar )
 
 # recode calib.method
 s3$calib.method.pretty = NA
 s3$calib.method.pretty[ s3$calib.method == "DL" ] = "Two-stage"
 s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
+# @add the bias corrections here
 
 # unique scenario variable
 s3$unique.scen = paste(s3$scen.name, s3$calib.method)
@@ -198,76 +114,23 @@ s3 = s3[ !names(s3) %in% c("X.1", "X") ]
 setwd(prepped.data.dir)
 write.csv(s3, "s3_dataset_MRM.csv")
 
-# sanity check for one scenario
-# mean varies across iterates, as expected
-summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "DL"])
-table( s3$scen.name == "134" & s3$calib.method == "DL" )
+################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
 
-##### Overwrite Analysis Variables As Their Within-Scenario Means #####
 
-# organize variables into 3 mutually exclusive sets: 
-# - parameter variables for grouping
-# - variables to drop completely
-# - variables that are static within a scenario, for which we should just take the first one
-# - variables for which we should take the mean within scenarios
-
-names(s3)[ !names(s3) %in% param.vars ]  # look at names of vars that need categorizing
-toDrop = c("method", "tail")
-firstOnly = c("unique.scen")
-( takeMean = names(s3)[ !names(s3) %in% c(param.vars, toDrop, firstOnly) ] )
-# sanity check: have all variables been sorted into these categories?
-expect_equal( TRUE,
-              all( names(s3) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
-
-
-s4 = s3 %>%
-
-  # take just first entry of non-parameter variables that are static within scenarios
-  group_by_at(param.vars) %>%
-  mutate_at( firstOnly, 
-          function(x) x[1] ) %>%
-  
-  # make certain ad hoc variables that don't conform to below rules
-  group_by_at(param.vars) %>%
-  mutate( sim.reps = n(),
-          bca.success = mean( is.na(Note) ),
-          PhatEmpSD = sd(Phat),
-          DiffEmpSD = sd(Diff) ) %>%
-  
-  # take means of numeric variables
-  group_by_at(param.vars) %>%
-  mutate_at( takeMean,
-             function(x) mean(x, na.rm = TRUE) ) %>%
-  
-  select( -all_of(toDrop) )
-  
-
-
-# sanity check: SDs of all analysis variables should be 0 within unique scenarios
-analysis.vars[ !analysis.vars %in% names(s4)]  # check for name mismatches
-# bm
-t = data.frame( s4 %>% group_by(unique.scen) %>%
-              summarise_at( analysis.vars, sd ) )
-expect_equal( FALSE, 
-              any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA) ) )
-
-
-# sanity check for one scenario
-# same mean as above but no longer varies across scenarios
-table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "DL"])
-
-
-# make aggregated data by keeping only first row for each 
-#  combination of scenario name and calib.method
-# s4$unique.scen = paste(s4$scen.name, s4$calib.method)
-agg = s4[ !duplicated(s4$unique.scen), ]
+agg = make_agg_data(s3)
 dim(agg)  # should be 1600?
 
+
+
+
+
+
 # we never have to remove scenarios now :)
-# **proportion of scenarios removed due to frequent BCA failure
-# e.g., because Phatdiff was almost 0, and k was so large that every boot iterate had PhatDiff = 0
-mean(agg$bca.success)
+# boot failures
+mean(agg$PhatBtFail); summary(agg$PhatBtFail)
+mean(agg$DiffBtFail); summary(agg$DiffBtFail)
+
 
 
 ################################## MAKE FINAL ANALYSIS DATASET ##################################

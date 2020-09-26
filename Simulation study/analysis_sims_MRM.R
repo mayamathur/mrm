@@ -1,4 +1,41 @@
 
+
+# quick look at bias corrections
+setwd("~/Desktop")
+s2 = read.csv("stitched.csv")
+dim(s2)
+s2.scens = unique(s2$scen.name.in.main)
+
+# bind rows because names differ (e.g., s2 has PhatBtFails)
+
+sall = bind_rows( s[s$scen.name %in% s2.scens,], s2 )
+# main dataset doesn't have this variable yet
+sall$scen.name.in.main[ is.na(sall$scen.name.in.main) ] = sall$scen.name[ is.na(sall$scen.name.in.main) ]
+
+
+table(is.na(sall$Phat), sall$calib.method)
+
+# bm
+
+t = sall %>% group_by(scen.name) %>%
+              mutate(PhatRelBias = mean( abs(Phat - TheoryP[1])/TheoryP[1], na.rm = TRUE ),
+                     CoverPhat = mean( CoverPhat, na.rm = TRUE),
+                     PhatBtFail = mean(PhatBtFail),
+                     
+                     DiffRelBias = mean( abs(Diff - TheoryDiff[1])/TheoryDiff[1], na.rm = TRUE ),
+                     CoverDiff = mean( CoverDiff, na.rm = TRUE) ) %>%
+              group_by(scen.name.in.main, calib.method) %>%
+              summarise_at( c("PhatRelBias", "CoverPhat", "PhatBtFail", "DiffRelBias", "CoverDiff"), function(x) round( mean(x), 2) ) 
+
+
+data.frame(t)
+
+# **bt correction doesn't help, but % failed bootstraps is 
+# indeed correlated with bias, even in this subset of scenarios
+cor.test( t$PhatBtFail, t$PhatRelBias )
+
+
+
 ################################## PRELIMINARIES ##################################
 
 rm(list=ls())
@@ -8,7 +45,7 @@ library(xtable)
 
 options(scipen=999)
 
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-23 for RSM_1"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26"
 results.dir = prepped.data.dir
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
@@ -27,11 +64,12 @@ source("helper_MRM.R")
 to.analyze = "One-stage"
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 # @TEMP ONLY: EXCLUDE SCENS THAT AREN'T DONE RUNNING
-agg = agg %>% filter(sim.reps>300)
+#agg = agg %>% filter(sim.reps>300)
 s = s %>% filter( calib.method.pretty %in% to.analyze )
 
 # restrict s to the analyzed scenarios in agg
 s = s %>% filter( unique.scen %in% agg$unique.scen )
+
 
 
 
@@ -66,7 +104,7 @@ agg.all %>% filter(clustered == TRUE) %>%
 
 # focus on observable variables within scenarios
 # i.e., estimates rather than parameters
-obsVars = c("k", "minN", "Phat", "Diff", "EstMean", "EstVar")
+obsVars = c("k", "muN", "Phat", "Diff", "EstMean", "EstVar", "PhatBtFail")
 
 outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
 
@@ -109,35 +147,31 @@ for (i in outcomes){
 res
 
 
-# for Phat metrics: want larger minN, larger EstVar
-# for Diff metrics: want larger k, minN, Diff
+# for Phat metrics: want larger muN, larger EstVar, lower PhatBtFail
+# for Diff metrics: want larger k, muN, Diff, lower PhatBtFail
 
 # test some rules of thumb
-summary(s$EstVar)
-summary(s$EstVar)
 
-s$totalN = s$k * s$muN
 
-sGood = s %>%
-  filter(TRUE)
- filter( V > 0.01 )
 
-temp = sGood %>%
-  group_by(scen.name) %>%
-  summarise( nReps = n(),
-             scenCover = mean(CoverPhat, na.rm = TRUE),
-             clustered = clustered[1],
-             true.effect.dist = true.effect.dist[1]) %>%
-  filter(nReps > 300)
+aggGood = make_agg_data( s %>% filter(PhatBtFail==0) )
 
-# *** exponential definitely hurts a lot
-# clustered too (to a lesser extent)
-# the expo and clustered scenarios are the worst
-data.frame( temp %>% group_by(clustered, true.effect.dist) %>%
-              summarise( min(scenCover),
-                         mean(scenCover),
-                         mean(scenCover < 0.85),
-                         mean(scenCover < 0.9) ) )
+agg2 = make_agg_data( s %>% filter(PhatBtFail==0 &
+                                     true.effect.dist == "normal" &
+                                     clustered == FALSE) )
+
+# rules for reporting diff
+agg3 = make_agg_data(s %>% filter(PhatBtFail==0 &
+                       k >= 100 &
+                        Diff >= 0.05) )  # last criterion does seem to matter
+
+
+t = rbind( my_summarise(agg),
+           my_summarise(aggGood),
+           my_summarise(agg2),
+           my_summarise(agg3) )  # rules for Diff
+t
+
 
 # look at how skewed they are
 d = sim_data2(k=150,m=75,b0=0, bc=0.5, bb=1,V=0.05,Vzeta=0.05*.8,minN=800, muN=850,sd.w=1, true.effect.dist = "expo")

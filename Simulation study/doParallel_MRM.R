@@ -34,9 +34,8 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 500
-  # used boot.reps=s5,000 in NPPhat
-  # just reduced to 1,000
+  sim.reps = 10
+  # used boot.reps=5,000 in NPPhat but have reduced to 1,000
   # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
   # JUST TO LOOK AT TIMEOUT ISSUE:
   # for largest scenario (k=150) with method MR and boot.reps=50 and sim.reps=100, one sbatch took 15 min
@@ -150,32 +149,6 @@ if ( run.local == TRUE ) {
   source("helper_MRM.R")
   
   
-  # # just one scenario
-  # # 14 MR
-  # ( scen.params = make_scen_params( method = "no.ci",  # "boot.whole", "no.ci"
-  #                                   calib.method = "MR bt both correct",
-  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-  #                                   k = c(20),
-  #                                   b0 = 0, # intercept
-  #                                   bc = 0.5, # effect of continuous moderator
-  #                                   bb = 1, # effect of binary moderator
-  # 
-  #                                   zc.star = 0.5,  # level of moderator to consider
-  #                                   zb.star = 1,
-  # 
-  #                                   zc.ref = 2,  # comparison levels of moderator to consider
-  #                                   zb.ref = 0,
-  # 
-  #                                   V = c( .01 ), # residual variance
-  #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50),
-  #                                   sd.w = c(1),
-  #                                   tail = "above",
-  #                                   true.effect.dist = c("normal"),
-  #                                   TheoryP = c(0.05),
-  #                                   start.at = 1 ) )
-  
-  
   # # debug cluster error
   # ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
   #                                   calib.method = c("MR"),
@@ -265,7 +238,7 @@ if ( run.local == TRUE ) {
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 100
+  sim.reps = 500
   boot.reps = 1000  # ~~ temp only
   
   
@@ -303,6 +276,7 @@ if ( run.local == TRUE ) {
 
 #for ( scen in scen.params$scen.name ) {  # can't use this part on the cluster
   
+# system.time is in seconds
   rep.time = system.time({
     rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
       # for debugging:
@@ -391,7 +365,7 @@ if ( run.local == TRUE ) {
                                                              zc.ref = p$zc.ref,
                                                              zb.ref = p$zb.ref,
                                                              calib.method = p$calib.method )
-                                  # @TEMP ONLY - FAKE ERROR IN 50% OF ITERATES
+                                  # @TEMP ONLY - PUT FAKE ERROR IN 50% OF ITERATES
                                   #if ( rbinom( n=1, size=2, prob = .2) == 1 ) stop("Fake error")
                                   
                                   # return the stats of interest
@@ -410,8 +384,6 @@ if ( run.local == TRUE ) {
                                 
                               } )
           boot.res
-          # bm
-
           
           # boot diagnostics
           bt.pfails =  as.numeric( colMeans( is.na(boot.res$t) ) )  # proportion of boot reps that failed (NAs)

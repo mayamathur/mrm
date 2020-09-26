@@ -2,6 +2,171 @@
 # audited the post-NPPhat parts 2020-6-17
 
 
+
+# fn for aggregating so we can look at different
+#  iterate-level filtering rules
+# .s: the iterate-level stitched data
+make_agg_data = function( .s3 ){
+  
+  ##### Outcome and Parameter Variables #####
+  # "outcome" variables used in analysis
+  analysis.vars = c( 
+    
+    "EstMean",
+    "EstVar",
+    
+    "Phat",
+    
+    "LogitPhatBtMn",
+    
+    "TheoryP.ref",
+    "PhatRef", 
+    
+    "TheoryDiff",
+    "Diff",
+    
+    "CoverPhat",
+    "CoverPhatRef",
+    "CoverDiff",
+    
+    "PhatCIWidth",
+    "PhatRefCIWidth",
+    "DiffCIWidth",
+    
+    ##### variables to be created in mutate below:
+    
+    "PhatBias",
+    "Phat2Bias",
+    "LogitPhat2Bias",
+    "DiffBias",
+    "Diff2Bias",
+    
+    "PhatAbsBias",
+    "Phat2AbsBias",
+    "LogitPhat2AbsBias",
+    "DiffAbsBias",
+    "Diff2AbsBias",
+    
+    #   "PhatBias",
+    #   "Phat2Bias",
+    #   "LogitPhatBias",
+    #   "DiffBias",
+    
+    "PhatRelBias",
+    "Phat2RelBias",
+    "LogitPhat2RelBias",
+    "DiffRelBias",
+    "Diff2RelBias",
+    
+    # diagnostics regarding meta-analysis estimates
+    "EstMeanRelBias",
+    "EstMeanAbsBias",
+    
+    "EstVarAbsBias",
+    "EstVarRelBias",
+    
+    # diagnostics regarding bootstraps
+    "PhatBtMn",
+    "PhatEmpSD",
+    "PhatBtSD",
+    "PhatBtFail",
+    
+    "LogitPhatBtMn",
+    
+    "DiffBtMn",
+    "DiffEmpSD",
+    "DiffBtSD",
+    "DiffBtFail"
+  )
+  
+  
+  
+  # variables that define the scenarios
+  param.vars = c("scen.name",
+                 "Method",
+                 "calib.method",
+                 "calib.method.pretty",
+                 "k",
+                 "m",
+                 "V",
+                 "Vzeta",
+                 "minN",
+                 "true.effect.dist",
+                 "TheoryP")
+  
+  
+  
+  # # sanity check for one scenario
+  # # mean varies across iterates, as expected
+  # summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "DL"])
+  # table( s3$scen.name == "134" & s3$calib.method == "DL" )
+  
+  
+  ##### Overwrite Analysis Variables As Their Within-Scenario Means #####
+  
+  # organize variables into 3 mutually exclusive sets: 
+  # - parameter variables for grouping
+  # - variables to drop completely
+  # - variables that are static within a scenario, for which we should just take the first one
+  # - variables for which we should take the mean within scenarios
+  
+  names(.s3)[ !names(.s3) %in% param.vars ]  # look at names of vars that need categorizing
+  toDrop = c("method", "tail")
+  firstOnly = c("unique.scen")
+  ( takeMean = names(.s3)[ !names(.s3) %in% c(param.vars, toDrop, firstOnly) ] )
+  # sanity check: have all variables been sorted into these categories?
+  expect_equal( TRUE,
+                all( names(.s3) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
+  
+  
+  s4 = .s3 %>%
+    
+    # take just first entry of non-parameter variables that are static within scenarios
+    group_by_at(param.vars) %>%
+    mutate_at( firstOnly, 
+               function(x) x[1] ) %>%
+    
+    # make certain ad hoc variables that don't conform to below rules
+    group_by_at(param.vars) %>%
+    mutate( sim.reps = n(),
+            #bca.success = mean( is.na(Note) ),
+            PhatEmpSD = sd(Phat),
+            DiffEmpSD = sd(Diff) ) %>%
+    
+    # take means of numeric variables
+    group_by_at(param.vars) %>%
+    mutate_at( takeMean,
+               function(x) mean(x, na.rm = TRUE) ) %>%
+    
+    select( -all_of(toDrop) )
+  
+  
+  
+  # sanity check: SDs of all analysis variables should be 0 within unique scenarios
+  analysis.vars[ !analysis.vars %in% names(s4)]  # check for name mismatches
+  
+  t = data.frame( s4 %>% group_by(unique.scen) %>%
+                    summarise_at( analysis.vars, sd ) )
+  expect_equal( FALSE, 
+                any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA) ) )
+  
+  
+  # sanity check for one scenario
+  # same mean as above but no longer varies across scenarios
+  table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "DL"])
+  
+  
+  # make aggregated data by keeping only first row for each 
+  #  combination of scenario name and calib.method
+  # s4$unique.scen = paste(s4$scen.name, s4$calib.method)
+  agg = s4[ !duplicated(s4$unique.scen), ]
+  
+  return(agg %>% ungroup() )
+}
+
+
+
+
 ############################# SMALL MISC FNS #############################
 
 # take the logit of a probability, but truncate
@@ -48,7 +213,7 @@ my_summarise = function(dat){
                             
                             MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
                             MinCoverPhat = min(CoverPhat, na.rm = TRUE),
-                            PBadCoverPhat = mean(CoverPhat<0.85),
+                            PBadCoverPhat = mean(CoverPhat<0.85, na.rm = TRUE),
                             
                             DiffBias = mean(DiffBias, na.rm = TRUE),
                             Diff2Bias = mean(Diff2Bias, na.rm = TRUE),
@@ -61,11 +226,13 @@ my_summarise = function(dat){
                             
                             MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
                             MinCoverDiff = min(CoverDiff, na.rm = TRUE),
-                            PBadCoverDiff = mean(CoverDiff<0.85),
+                            PBadCoverDiff = mean(CoverDiff<0.85, na.rm = TRUE),
                             
                             # for comparison
                             EstMeanRelBias = mean(EstMeanRelBias, na.rm = TRUE),
-                            EstVarRelBias = mean(EstVarRelBias, na.rm = TRUE) ),
+                            EstVarRelBias = mean(EstVarRelBias, na.rm = TRUE),
+                            
+                            .groups = "drop"),
          2 )
 }
 
@@ -139,15 +306,13 @@ prop_stronger_mr = function(dat,
     ens.shift = c(bhat0) + sqrt( c(t2) / ( c(t2) + vyi) ) * ( dat$yi.shift - c(bhat0) )
   }
   
-  
+  ##### Boot Bias Corrections #####
   if ( calib.method %in% c("MR bt mn correct", "MR bt var correct", "MR bt both correct" ) ) {
     
     # nest by cluster in case we need to do cluster bootstrap
     # now has one row per cluster
     # works whether there is clustering or not
     datNest = dat %>% group_nest(cluster)
-    
-    browser()
     
     tryCatch({
       boot.res = my_boot( data = datNest, 
