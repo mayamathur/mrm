@@ -1,6 +1,8 @@
 
 # code audited 2020-6-17
 
+#@NOTE: SHOULD PROBABLY USE MODELWEIGHTS = HIER FOR THESE
+
 ################################## READ IN DATA ################################## 
 
 library(dplyr)

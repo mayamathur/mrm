@@ -34,6 +34,20 @@ names = names( read.csv(keepers[1] )[-1] )
 
 # read in and rbind the keepers
 tables <- lapply( keepers, function(x) read.csv(x, header= TRUE) )
+
+# # @ temp: get rid of bad ones
+# keepTable = unlist( lapply(tables, function(x) "scen.name.in.main" %in% names(x) ) )
+# table(keepTable)
+# tables = tables[ keepTable == TRUE ]
+
+# @why is it missing the merging variable?
+setwd("/home/groups/manishad/MRM")
+scen.params = read.csv( "scen_params.csv" )
+
+# keepTable
+# FALSE  TRUE 
+# 34    16 
+
 s <- do.call(rbind, tables)
 
 names(s) = names( read.csv(keepers[1], header= TRUE) )
@@ -42,7 +56,7 @@ if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
 write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
 
 # are we there yet?
-dim(s)  # main sims: 800000, bias correction sims: 13000
+nrow(s) / (96*500)  # main sims: 1600*500, bias correction sims: 96*500
 length(unique(s$scen.name))  # main sims: 1600; bias correction sims: 26
 
 ##### Look for Missed Jobs #####
@@ -59,15 +73,41 @@ for (i in missed.nums) {
   system( paste("sbatch -p qsu,owners,normal /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
 }
 
+##### Move to Desktop #####
+# Sherlock -> Desktop
+scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
+
 
 
 
 ##### Quick Look at Results #####
 
+library(cli, lib.loc = "/home/groups/manishad/Rpackages/")
+library(fansi, lib.loc = "/home/groups/manishad/Rpackages/")
+library(utf8, lib.loc = "/home/groups/manishad/Rpackages/")
+library(rlang, lib.loc = "/home/groups/manishad/Rpackages/")
+library(crayon, lib.loc = "/home/groups/manishad/Rpackages/")
+library(dplyr, lib.loc = "/home/groups/manishad/Rpackages/")
+library(foreach, lib.loc = "/home/groups/manishad/Rpackages/")
+library(doParallel, lib.loc = "/home/groups/manishad/Rpackages/")
+library(boot, lib.loc = "/home/groups/manishad/Rpackages/")
+library(metafor, lib.loc = "/home/groups/manishad/Rpackages/")
+library(robumeta, lib.loc = "/home/groups/manishad/Rpackages/")
+library(data.table, lib.loc = "/home/groups/manishad/Rpackages/")
+library(purrr, lib.loc = "/home/groups/manishad/Rpackages/")
+library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
+
+
+s = s[ ,!is.na(names(s)) ]
+
 s %>% group_by(scen.name) %>%
-  mutate(PhatRelBias = mean( abs(Phat)/TheoryP[1] ) ) %>%
+  mutate(PhatRelBias = mean( abs(Phat - TheoryP[1])/TheoryP[1] ),
+         EstVarRelBias = mean( abs(EstVar - V[1])/V[1] ) ) %>%
   group_by(calib.method) %>%
-  summarise( PhatRelBiasMn = mean(PhatRelBias) )
+  summarise( n(),
+             PhatRelBiasMn = mean(PhatRelBias),
+             EstVarRelBiasMn = mean(EstVarRelBias) )
+# expect n=16000 for each calib.method since there are 96 total rows (3 each per scenario)
 
 table(is.na(s$PhatLo))
 table(is.na(s$DiffLo))
@@ -83,12 +123,6 @@ mean(s$Diff)
 table(s$TheoryDiff)
 bias = mean(s$Diff) - s$TheoryDiff
 mean(s$DiffBtMn, na.rm=TRUE); bias  # hope this is equal to the bias
-
-
-##### Move to Desktop #####
-# Sherlock -> Desktop
-scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sim_results/overall_stitched/stitched.csv ~/Desktop
-
 
 
 

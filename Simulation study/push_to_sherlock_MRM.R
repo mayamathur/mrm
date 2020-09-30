@@ -17,8 +17,7 @@ cd /home/groups/manishad/MRM/sim_results/long
 ls -l . | egrep -c '^-'
 
 ###### See the Errors #####
-nano /home/groups/manishad/MRM/sbatch_files/slurm*
-vim /home/groups/manishad/MRM/sbatch_files/rm_1.err
+vim /home/groups/manishad/MRM/sbatch_files/rm_1507.err
 
 # see the scen parameters
 nano /home/groups/manishad/MRM/scen_params.csv
@@ -43,8 +42,7 @@ scp mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/* ~/Desktop
 ####################### SHERLOCK -> DESKTOP (DEBUGGING) ####################### 
 
 # move error file to Desktop
-scp -r mmathur@sherlock:/home/groups/manishad/MRM/sbatch_files/rm_19.err ~/Desktop
-scp -r mmathur@sherlock:/home/groups/manishad/MRM/sbatch_files/rm_19.out ~/Desktop
+scp -r mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sbatch_files/rm_1250.err ~/Desktop
 
 # move one sbatch file to Desktop
 scp -r mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM/sbatch_files/2296.sbatch ~/Desktop

@@ -34,7 +34,7 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 10
+  sim.reps = 50  # for main sims
   # used boot.reps=5,000 in NPPhat but have reduced to 1,000
   # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
   # JUST TO LOOK AT TIMEOUT ISSUE:
@@ -265,7 +265,8 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  scen = 261
+  # the one that returned 6 errors along the lines of all values of t being equal to some number 
+  scen = 1308
   data.frame(scen.params %>% filter(scen.name == scen))
 }
 
@@ -333,6 +334,8 @@ if ( run.local == TRUE ) {
         btNClusters = NA
         
         tryCatch({
+          
+          # bm
           
           # nest by cluster in case we need to do cluster bootstrap
           # now has one row per cluster

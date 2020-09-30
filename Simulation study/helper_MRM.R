@@ -35,6 +35,9 @@ make_agg_data = function( .s3 ){
     
     ##### variables to be created in mutate below:
     
+    # "BadPhatCover",
+    # "BadDiffCover",
+    
     "PhatBias",
     "Phat2Bias",
     "LogitPhat2Bias",
@@ -69,6 +72,9 @@ make_agg_data = function( .s3 ){
     "PhatBtMn",
     "PhatEmpSD",
     "PhatBtSD",
+    "PhatBtSDBias",
+    "PhatBtSDAbsBias",
+    "PhatBtSDRelBias",
     "PhatBtFail",
     
     "LogitPhatBtMn",
@@ -76,6 +82,9 @@ make_agg_data = function( .s3 ){
     "DiffBtMn",
     "DiffEmpSD",
     "DiffBtSD",
+    "DiffBtSDBias",
+    "DiffBtSDAbsBias",
+    "DiffBtSDRelBias",
     "DiffBtFail"
   )
   
@@ -103,7 +112,6 @@ make_agg_data = function( .s3 ){
   
   
   ##### Overwrite Analysis Variables As Their Within-Scenario Means #####
-  
   # organize variables into 3 mutually exclusive sets: 
   # - parameter variables for grouping
   # - variables to drop completely
@@ -112,13 +120,10 @@ make_agg_data = function( .s3 ){
   
   names(.s3)[ !names(.s3) %in% param.vars ]  # look at names of vars that need categorizing
   toDrop = c("method", "tail")
-  firstOnly = c("unique.scen")
-  ( takeMean = names(.s3)[ !names(.s3) %in% c(param.vars, toDrop, firstOnly) ] )
-  # sanity check: have all variables been sorted into these categories?
-  expect_equal( TRUE,
-                all( names(.s3) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
+  firstOnly = c("scen.name")
   
   
+  ##### Add New Variables Calculated at the Scenario Level #####
   s4 = .s3 %>%
     
     # take just first entry of non-parameter variables that are static within scenarios
@@ -129,9 +134,31 @@ make_agg_data = function( .s3 ){
     # make certain ad hoc variables that don't conform to below rules
     group_by_at(param.vars) %>%
     mutate( sim.reps = n(),
-            #bca.success = mean( is.na(Note) ),
+            
+            #BadPhatCover = mean(CoverPhat < 0.85, na.rm = TRUE),
+            #BadDiffCover = mean(CoverDiff < 0.85, na.rm = TRUE),
+            
             PhatEmpSD = sd(Phat),
-            DiffEmpSD = sd(Diff) ) %>%
+            PhatBtSDBias = PhatBtSD - PhatEmpSD,
+            PhatBtSDAbsBias = abs( PhatBtSD - PhatEmpSD ),
+            PhatBtSDRelBias = PhatBtSDAbsBias/PhatEmpSD,
+            
+            DiffEmpSD = sd(Diff),
+            DiffBtSDBias = DiffBtSD - DiffEmpSD,
+            DiffBtSDAbsBias = abs( DiffBtSD - DiffEmpSD ),
+            DiffBtSDRelBias = DiffBtSDAbsBias/DiffEmpSD )
+  
+  
+  # now look for which variables should have their means taken
+  # this step must happen here, after we've started making s4, 
+  #  so that the takeMean vars are actually in s4
+  ( takeMean = names(s4)[ !names(s4) %in% c(param.vars, toDrop, firstOnly) ] )
+  # sanity check: have all variables been sorted into these categories?
+  expect_equal( TRUE,
+                all( names(s4) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
+  
+  
+  s4 = s4 %>%
     
     # take means of numeric variables
     group_by_at(param.vars) %>%
@@ -140,26 +167,27 @@ make_agg_data = function( .s3 ){
     
     select( -all_of(toDrop) )
   
-  
-  
   # sanity check: SDs of all analysis variables should be 0 within unique scenarios
   analysis.vars[ !analysis.vars %in% names(s4)]  # check for name mismatches
   
-  t = data.frame( s4 %>% group_by(unique.scen) %>%
+  t = data.frame( s4 %>% group_by(scen.name) %>%
                     summarise_at( analysis.vars, sd ) )
-  expect_equal( FALSE, 
-                any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA) ) )
   
+  #browser()
+  t = t %>% select(-scen.name)
+  expect_equal( FALSE, 
+                any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA, NaN) ) )
+  # end sanity check
   
   # sanity check for one scenario
   # same mean as above but no longer varies across scenarios
-  table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "DL"])
+  # table(s4$PhatRelBias[s4$scen.name == "134" & s4$calib.method == "DL"])
   
-  
+  ##### Aggregate Data at Scenario Level #####
   # make aggregated data by keeping only first row for each 
   #  combination of scenario name and calib.method
   # s4$unique.scen = paste(s4$scen.name, s4$calib.method)
-  agg = s4[ !duplicated(s4$unique.scen), ]
+  agg = s4[ !duplicated(s4$scen.name), ]
   
   return(agg %>% ungroup() )
 }
@@ -191,49 +219,49 @@ covers = function( truth, lo, hi ) {
   return( (lo <= truth) & (hi >= truth) )
 }
 
-
+# get names of dataframe containing a string
+namesWith = function(pattern, dat){
+  names(dat)[ grepl(pattern = pattern, x = names(dat) ) ]
+}
 
 ############################# FN: MAKE SUMMARY TABLE FOR ANALYSIS #############################
 
-my_summarise = function(dat){
-  round( dat %>% summarise( n.scens = n(),
-                            
-                            PhatBias = mean(PhatBias, na.rm = TRUE),
-                            Phat2Bias = mean(Phat2Bias, na.rm = TRUE),
-                            LogitPhat2Bias = mean(LogitPhat2Bias, na.rm = TRUE),
-                            
-                            
-                            PhatRelBias = mean(PhatRelBias, na.rm = TRUE),
-                            Phat2RelBias = mean(Phat2RelBias, na.rm = TRUE),
-                            LogitPhat2RelBias = mean(LogitPhat2RelBias, na.rm = TRUE),
-                            
-                            PhatAbsBias = mean(PhatAbsBias, na.rm = TRUE),
-                            Phat2AbsBias = mean(Phat2AbsBias, na.rm = TRUE),
-                            LogitPhat2AbsBias = mean(LogitPhat2AbsBias, na.rm = TRUE),
-                            
-                            MeanCoverPhat = mean(CoverPhat, na.rm = TRUE),
-                            MinCoverPhat = min(CoverPhat, na.rm = TRUE),
-                            PBadCoverPhat = mean(CoverPhat<0.85, na.rm = TRUE),
-                            
-                            DiffBias = mean(DiffBias, na.rm = TRUE),
-                            Diff2Bias = mean(Diff2Bias, na.rm = TRUE),
-                            
-                            DiffRelBias = mean(DiffRelBias, na.rm = TRUE),
-                            Diff2RelBias = mean(Diff2RelBias, na.rm = TRUE),
-                            
-                            DiffAbsBias = mean(DiffAbsBias, na.rm = TRUE),
-                            Diff2AbsBias = mean(Diff2AbsBias, na.rm = TRUE),
-                            
-                            MeanCoverDiff = mean(CoverDiff, na.rm = TRUE),
-                            MinCoverDiff = min(CoverDiff, na.rm = TRUE),
-                            PBadCoverDiff = mean(CoverDiff<0.85, na.rm = TRUE),
-                            
-                            # for comparison
-                            EstMeanRelBias = mean(EstMeanRelBias, na.rm = TRUE),
-                            EstVarRelBias = mean(EstVarRelBias, na.rm = TRUE),
-                            
-                            .groups = "drop"),
-         2 )
+# summarize performance metrics given a dataset (dat) that is already scenario-aggregated
+#  looks for all variables with "Bias" or "Cover" in their names and takes their means
+
+# description: description of the row to make a nice table
+# selectVars: "Phat", "Diff" (by default looks for a global variable by this name)
+my_summarise = function(dat,
+                        description = NA,
+                        .selectVars = selectVars){
+  
+  # variables whose mean should be taken
+  meanVars = c( namesWith(pattern = "Bias", dat = dat), 
+                namesWith(pattern = "Cover", dat = dat) )
+  
+  if (.selectVars == "Phat") meanVars = meanVars[ !grepl(pattern = "Diff", x = meanVars) ]
+  
+  if (.selectVars == "Diff") meanVars = meanVars[ !grepl(pattern = "Phat", x = meanVars) ]
+  
+  
+  # make a one-row summary
+  tab = dat %>% 
+    summarise_at( .vars = meanVars, 
+                  function(x) mean(x, na.rm = TRUE) )
+  
+  
+  # proportion of SCENARIOS with bad MEAN coverage
+  tab = tab %>% add_column(BadPhatCover = mean(dat$CoverPhat < 0.85),
+                           BadDiffCover = mean(dat$CoverDiff < 0.85))
+  if (selectVars == "Phat") tab = tab %>% select(-BadDiffCover)
+  if (selectVars == "Diff") tab = tab %>% select(-BadPhatCover)
+  
+  tab = round( tab, 2 )
+  
+  tab = tab %>% add_column(n.scens = nrow(dat), .before = 1 )
+  
+  if ( !is.na(description) ) tab = tab %>% add_column(Scenarios = description, .before = 1)
+  return(tab)
 }
 
 ############################# FNS FOR BOOTSTRAPPING #############################
@@ -292,7 +320,7 @@ prop_stronger_mr = function(dat,
   
   # point estimates shifted to have Z = 0
   dat$yi.shift = yi - (bhatc*Zc + bhatb*Zb) 
-
+  
   ##### Two-Stage Calibration Method ("DL") #####
   # use regular meta-analysis on the shifted point estimates
   if ( calib.method == "DL" ){
@@ -324,7 +352,7 @@ prop_stronger_mr = function(dat,
                               bNest = original[indices,]
                               b = bNest %>% unnest(data)
                             }
-                   
+                            
                             tryCatch({
                               mb = robu( yi ~ Zc + Zb, 
                                          data = b, 
@@ -556,7 +584,7 @@ sim_data2 = function( k, # total number of studies
   if ( m < k & (k %% m != 0) ) cluster = sample( 1:m, size = k, replace = TRUE )
   # k divisible by m: assign observations to clusters in a balanced way
   if ( m < k & (k %% m == 0) ) cluster = rep(1:m, each = k/m)
-
+  
   if (m > k) stop("m must be <= k")
   
   cluster = sort(cluster)

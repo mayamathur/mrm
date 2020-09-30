@@ -189,7 +189,7 @@ qual.vars.raw = c("qual.y.prox",
                   "qual.prereg",
                   "qual.public.data")
 
-# recode quality variables as binary
+# recode quality variables as binary (1 = higher quality)
 dm$qual.y.prox2 = binary_recode(dm$qual.y.prox, "b.Self-reported"); table(dm$qual.y.prox2, dm$qual.y.prox)
 dm$low.miss = dm$qual.missing < 15
 dm$qual.exch2 = binary_recode(dm$qual.exch, "a.Low"); table(dm$qual.exch2, dm$qual.exch)

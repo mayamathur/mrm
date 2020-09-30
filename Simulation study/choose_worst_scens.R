@@ -3,13 +3,10 @@
 #  extension to simulation study.
 
 
-################################# FOR 2020-9-26 BIAS CORRECTIONS ################################# 
-
 setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26")
-agg = fread("*agg_dataset_as_analyzed.csv")
 
-# avoid reusing scen names
-( max.scen.name = max(agg$scen.name) )
+agg = fread("*agg_dataset_as_analyzed.csv")
+max.scen.name = max(agg$scen.name)
 
 
 # don't need to do both MR and DL
@@ -111,30 +108,6 @@ write.csv(scen.params, "scen_params.csv")
 scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Simulation\ study\ results/2020-9-28\ bias\ corrections/scen_params.csv mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
 
 
-################################# FOR 2020-9-28 BIAS CORRECTIONS ################################# 
-
-
-# data with just params method and MR method
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-28 bias corrections")
-s2 = fread("stitched_MR_and_params_methods.csv")
-scen.params = fread("scen_params.csv")
-
-# avoid reusing scen names
-( max.scen.name = max(agg$scen.name, s2$scen.name) )
-
-# only run the ones with double-bootstrapping
-scen.params = scen.params %>% filter( calib.method == "MR bt both correct" )
-dim(scen.params)
-
-# don't calculate CI because insanely time-consuming (bootstrapping^2)
-# just look at bias for now
-scen.params$method = "no.ci"
-
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-29 bias corrections")
-write.csv(scen.params, "scen_params.csv")
-
-# push the new scen params to Sherlock
-scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Simulation\ study\ results/2020-9-29\ bias\ corrections/scen_params.csv mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
 
 
 

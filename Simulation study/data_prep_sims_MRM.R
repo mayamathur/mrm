@@ -7,6 +7,7 @@ rm(list=ls())
 
 library(dplyr)
 library(testthat)
+library(data.table)
 
 stitched.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26"
 
@@ -19,12 +20,13 @@ setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metr
 source("helper_MRM.R")
 
 
-################################## DATA PREP ##################################
+################################## MAKE ITERATE-LEVEL STATS ##################################
 
 setwd(stitched.data.dir)
-s = read.csv("stitched_main_sims.csv")
+#s = read.csv("stitched_main_sims.csv")
+s = fread("stitched_main_sims.csv")
 
-nrow(s)/(1600)
+nrow(s)/(1600*500)
 length(unique(s$scen.name))/1600  # of 1600 total
 
 
@@ -52,24 +54,23 @@ summary(s$repTime)/60
 
 
 
-# bias-corrected Phat and Diff
-# using the bootstrap mean
-s$Phat2 = s$Phat - (s$PhatBtMn - s$Phat)
-s$LogitPhat = truncLogit(s$Phat)
-s$LogitPhat2 = s$LogitPhat - ( s$LogitPhatBtMn - s$LogitPhat )
-s$Diff2 = s$Diff - (s$DiffBtMn - s$Diff)
-
 # IMPORTANT NOTE: if you add variables here, need to add them to analysis.vars
 #  inside make_agg_data
 #  vector above so that they are grouped in the dplyr work below
 s3 = s %>%
   # iterate-level states:
   mutate( 
-    
+    # bias-corrected Phat and Diff (the "2" suffix)
+    # using the bootstrap mean
+    Phat2 = Phat - (PhatBtMn - Phat),
+    LogitPhat = truncLogit(Phat),
+    LogitPhat2 = LogitPhat - ( LogitPhatBtMn - LogitPhat ),
+    Diff2 = Diff - (DiffBtMn - Diff),
+
     PhatBias = (Phat - TheoryP),
     Phat2Bias = (Phat2 - TheoryP),
     # not doing LogitPhat on its own because redundant with Phat itself
-    LogitPhat2Bias = ( expit(LogitPhat2) - TheoryP ),
+    LogitPhat2Bias = ( expit(LogitPhat2) - TheoryP ),  # @note this is on the exponentiated scale for consistency with the others
     
     DiffBias = (Diff - TheoryDiff),
     Diff2Bias = (Diff2 - TheoryDiff),
@@ -77,7 +78,7 @@ s3 = s %>%
     PhatAbsBias = abs(Phat - TheoryP),
     Phat2AbsBias = abs(Phat2 - TheoryP),
     # not doing LogitPhat on its own because redundant with Phat itself
-    LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP),
+    LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP ),
     
     DiffAbsBias = abs(Diff - TheoryDiff),
     Diff2AbsBias = abs(Diff2 - TheoryDiff),
@@ -104,43 +105,41 @@ s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
 # @add the bias corrections here
 
 # unique scenario variable
-s3$unique.scen = paste(s3$scen.name, s3$calib.method)
+#s3$unique.scen = paste(s3$scen.name, s3$calib.method)
 
 # remove dumb columns
-s3 = s3[ !names(s3) %in% c("X.1", "X") ]
+s3 = s3 %>% select( -c("V1", "X.1") )
 
 ##### Save Dataset ####
 # saving now BEFORE we overwrite Phat, etc., with the versions that are aggregated by scenario
 setwd(prepped.data.dir)
-write.csv(s3, "s3_dataset_MRM.csv")
+fwrite(s3, "s3_dataset_MRM.csv")
 
 ################################## MAKE NEW VARIABLES AND AGGREGATE ##################################
 
-
+# read back in to avoid going through the above again
+setwd(prepped.data.dir)
+s3 = fread("s3_dataset_MRM.csv")
 
 agg = make_agg_data(s3)
 dim(agg)  # should be 1600?
 
 
-
-
-
-
-# we never have to remove scenarios now :)
-# boot failures
-mean(agg$PhatBtFail); summary(agg$PhatBtFail)
-mean(agg$DiffBtFail); summary(agg$DiffBtFail)
+# # we never have to remove scenarios now :)
+# # boot failures
+# mean(agg$PhatBtFail); summary(agg$PhatBtFail)
+# mean(agg$DiffBtFail); summary(agg$DiffBtFail)
 
 
 
 ################################## MAKE FINAL ANALYSIS DATASET ##################################
 
-# simulation reps per scenario
-summary(agg$sim.reps)
-sort(agg$sim.reps)
+# # simulation reps per scenario
+# summary(agg$sim.reps)
+# sort(agg$sim.reps)
 
 ##### Save Final Dataset #####
 setwd(prepped.data.dir)
-write.csv(agg, "*agg_dataset_as_analyzed.csv")
+fwrite(agg, "*agg_dataset_as_analyzed.csv")
 
 
