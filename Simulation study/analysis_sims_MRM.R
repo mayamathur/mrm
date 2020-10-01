@@ -75,6 +75,7 @@ code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression
 setwd(prepped.data.dir)
 # data aggregated by scenario
 agg.all = fread("*agg_dataset_as_analyzed.csv")
+expect_equal( 1581, nrow(agg.all) ) # 1271 from data prep script
 # data for each simulation iterate
 s = fread("s3_dataset_MRM.csv")
 
@@ -84,11 +85,15 @@ source("helper_MRM.R")
 # CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
 #to.analyze = "Two-stage"
 to.analyze = "One-stage"
+
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
-# # @TEMP ONLY: EXCLUDE SCENS THAT AREN'T DONE RUNNING
-# #agg = agg %>% filter(sim.reps>300)
-s = s %>% filter( calib.method.pretty %in% to.analyze )
-# 
+# @test: more stringent bca.success criterion
+#agg = agg %>% filter( bca.success > .10 )
+
+# cut to avoid low-bca-success ones
+s = s %>% filter( calib.method.pretty %in% to.analyze & 
+                    scen.name %in% agg$scen.name )
+
 # # restrict s to the analyzed scenarios in agg
 # s = s %>% filter( unique.scen %in% agg$unique.scen )
 
@@ -205,6 +210,27 @@ data.frame( my_summarise(dat = make_agg_data( s %>% filter(Phat>0.10 & PhatRef >
 
 ################################## TEST RULES OF THUMB ##################################
 
+# bm
+# overall
+selectVars = "all"
+data.frame( my_summarise(dat = agg,
+                         description = "All reps") )
+
+# reproduce previous findings
+temp = agg %>% filter( bca.success>0.05 &
+  clustered == FALSE & 
+  V > 0.0025 & 
+  V < 0.64 )
+
+data.frame( my_summarise(dat = temp,
+                         description = "Reproduce previous") )
+
+# bm
+
+# look at filtering rules
+data.frame( my_summarise(dat = agg %>% filter(bca.success>0.1),
+                         description = "All reps") )
+
 ##### For Phat #####
 
 # make filtered dfs
@@ -234,96 +260,17 @@ t = rbind( my_summarise(dat = agg,
 
 View(t)
 
+
 ##### For Diff #####
 
 agg12 = make_agg_data(s %>% filter(PhatBtFail==0) )
 
-agg6 = make_agg_data(s %>% filter(PhatBtFail==0 & k >= 100) )
+agg6 = make_agg_data(s %>% filter(k >= 100) )
 
 agg7 = make_agg_data(s %>% filter( k >= 100 &
                                      !(clustered == TRUE & true.effect.dist == "expo") ) ) 
 
-agg8 = make_agg_data( s %>% filter(k >= 100 & Diff > .1) )
 
-agg9 = make_agg_data( s %>% filter(k >= 100 & TheoryDiff > .1) )
-
-agg10 = make_agg_data( s %>% filter(k >= 100 & true.effect.dist == "normal") )
-
-agg11 = make_agg_data( s %>% filter(k >= 100 &
-                                      true.effect.dist == "normal" &
-                                      clustered == FALSE ) )
-
-# from best-subsets regression for DiffRelBias
-agg13 = make_agg_data( s %>% filter(k >= 100 &
-                                      EstMean <= 1.25 ) )
-
-# from best-subsets regression for coverage
-agg14 = make_agg_data( s %>% filter(k >= 100 &
-                                      Diff >= .15 ) )
-
-agg15 = make_agg_data( s %>% filter(k >= 100 &
-                                      #PhatBtFail == 0 &
-                                      TheoryDiff >= .05 &
-                                      clustered == FALSE & 
-                                      V > 0.0025 & 
-                                      V < 0.64 )
-                         ) 
-
-
-########## DEBUGGING: COMPARE DIFF RESULTS TO PREVIOUS SIMS
-
-# bm
-
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-6-19 merged results in RSM_0")
-aggOld = fread("*agg_dataset_as_analyzed.csv") %>% filter(calib.method == "MR")
-summary(aggOld$bca.success)
-
-# with BCA failures:
-temp2 = fread("agg_dataset_with_bca_failures_MRM.csv") %>% filter(calib.method == "MR")
-summary(temp2$bca.success)
-
-
-param.vars = c(
-               #"Method",
-               #"calib.method",
-               #"calib.method.pretty",
-               "k",
-               #"m",
-               "V",
-               #"Vzeta",
-               "minN",
-               "true.effect.dist",
-               "TheoryP")
-
-temp = agg %>% filter( clustered == FALSE & 
-                         V > 0.0025 & 
-                         V < 0.64 )
-
-summary(temp$PhatBtFail)
-
-dim(aggOld)
-dim(temp2)
-dim(temp)
-
-# merge them
-x = merge( temp, aggOld, all.x = TRUE, by =  )
-
-
-
-
-########## END DEBUGGING
-
-
-
-agg16 = make_agg_data( s %>% filter(k >= 100 &
-                                      #PhatBtFail == 0 &
-                                      Diff >= 0.10 &
-                                      clustered == FALSE & 
-                                      EstVar > 0.10 ) )
-
-data.frame( my_summarise( agg16,
-                          description = "") )
-# bm: :(
 
 selectVars = "Diff"
 t = rbind( my_summarise(dat = agg,
@@ -333,41 +280,13 @@ t = rbind( my_summarise(dat = agg,
                         description = "No bt fails"),
            
            my_summarise(agg6,
-                        description = "No bt fails/k>=100"),
+                        description = "k>=100"),
            
            my_summarise( agg7,
-                         description = "k>=100/not clustered expo"),
-           
-           my_summarise( agg10,
-                         description = "k>=100/normal"),
-           
-           my_summarise( agg11,
-                         description = "k>=100/normal/unclustered"),
-           
-           my_summarise( agg8,
-                         description = "k>=100/est diff > .1"),
-           
-           my_summarise( agg9,
-                         description = "k>=100/true diff > .1"),
-           
-           my_summarise( agg13,
-                         description = "from best subsets (bias)"),
-           
-           my_summarise( agg14,
-                         description = "from best subsets (coverage)"),
-           
-           my_summarise( agg15,
-                         description = "reproduce previous rule")
-           )  
+                         description = "k>=100/not clustered expo")
+)  
 
 View(t)
-
-# # look at effect sizes' skewness
-# d = sim_data2(k=150,m=75,b0=0, bc=0.5, bb=1,V=0.05,Vzeta=0.05*.8,minN=800, muN=850,sd.w=1, true.effect.dist = "expo")
-# 
-# d = sim_data2(k=150,m=150,b0=0, bc=0.5, bb=1,V=0.05,Vzeta=0,minN=800, muN=850,sd.w=1, true.effect.dist = "expo")
-# 
-# hist(d$Mi)
 
 
 

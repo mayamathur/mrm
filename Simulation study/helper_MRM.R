@@ -134,6 +134,8 @@ make_agg_data = function( .s3 ){
     # make certain ad hoc variables that don't conform to below rules
     group_by_at(param.vars) %>%
     mutate( sim.reps = n(),
+            # my attempt to reproduce the previous variable
+            bca.success = mean( is.na(CoverPhat) | is.na(CoverDiff) | is.na(CoverPhatRef) ),
             
             #BadPhatCover = mean(CoverPhat < 0.85, na.rm = TRUE),
             #BadDiffCover = mean(CoverDiff < 0.85, na.rm = TRUE),
@@ -142,11 +144,13 @@ make_agg_data = function( .s3 ){
             PhatBtSDBias = PhatBtSD - PhatEmpSD,
             PhatBtSDAbsBias = abs( PhatBtSD - PhatEmpSD ),
             PhatBtSDRelBias = PhatBtSDAbsBias/PhatEmpSD,
+            PhatBtSDRelBiasSigned = PhatBtSDBias/PhatEmpSD,
             
             DiffEmpSD = sd(Diff),
             DiffBtSDBias = DiffBtSD - DiffEmpSD,
             DiffBtSDAbsBias = abs( DiffBtSD - DiffEmpSD ),
-            DiffBtSDRelBias = DiffBtSDAbsBias/DiffEmpSD )
+            DiffBtSDRelBias = DiffBtSDAbsBias/DiffEmpSD,
+            DiffBtSDRelBiasSigned = DiffBtSDBias/DiffEmpSD )
   
   
   # now look for which variables should have their means taken

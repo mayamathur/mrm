@@ -122,7 +122,13 @@ setwd(prepped.data.dir)
 s3 = fread("s3_dataset_MRM.csv")
 
 agg = make_agg_data(s3)
-dim(agg)  # should be 1600?
+nrow(agg)  # would be 1600 if there were no simulation failures at the scenario level
+
+# @TEMP: DOES THIS REPRODUCE PREVIOUS RESULTS?
+# this variable is created by make_agg_data
+# loses about 20% of scenarios, similarly to previous
+#agg = agg %>% filter( bca.success > 0.05 )
+#nrow(agg)
 
 
 # # we never have to remove scenarios now :)

@@ -496,7 +496,7 @@ if ( run.local == TRUE ) {
         PhatBtMn = bt.means[1],
         PhatBtSD = bt.sds[1],
         PhatBtFail = bt.pfails[1],
-        # bm
+    
         
         LogitPhatBtMn = bt.means[5],
         truncLogitLo = truncLogitBootCIs[1],
