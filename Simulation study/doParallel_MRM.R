@@ -149,91 +149,91 @@ if ( run.local == TRUE ) {
   source("helper_MRM.R")
   
   
-  # # debug cluster error
-  # ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
-  #                                   calib.method = c("MR"),
-  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-  #                                   k = c(150),
-  #                                   m = c(75), # @NEW,
-  #                                   #m = 100,
-  #                                   
-  #                                   b0 = 0, # intercept
-  #                                   bc = 0, # effect of continuous moderator
-  #                                   bb = 0, # effect of binary moderator
-  #                                   
-  #                                   zc.star = 0.5,  # level of moderator to consider
-  #                                   zb.star = 1,
-  #                                   
-  #                                   zc.ref = 2,  # comparison levels of moderator to consider
-  #                                   zb.ref = 0,
-  #                                   
-  #                                   V = c( .2 ), # residual variance
-  #                                   Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
-  #                                   #Vzeta = 0,
-  #                                   
-  #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50),
-  #                                   sd.w = c(1),
-  #                                   tail = "above",
-  #                                   true.effect.dist = c("normal"),
-  #                                   TheoryP = c(0.2),
-  #                                   start.at = 1 ) )
-  
-  
-  # full set of scenarios
-  # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
-  ( scen.params = make_scen_params( method = "bt.smart",
-                                    calib.method = c("MR", "DL"),
-                                    
-                                    k = rev(c(10, 20, 50, 100, 150)),
-                                    m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
+  # debug cluster error
+  ( scen.params = make_scen_params( method = c("no.ci"),  # "bt.smart" or "no.ci"
+                                    calib.method = c("MR bt both correct"),
+                                    #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+                                    k = c(50),
+                                    m = c(50), # @NEW,
+                                    #m = 100,
+
                                     b0 = 0, # intercept
-                                    bc = 0.5, # effect of continuous moderator
-                                    bb = 1, # effect of binary moderator
-                                    
-                                    zc.star = 0.5,  # "active" level of moderator to consider
+                                    bc = 0, # effect of continuous moderator
+                                    bb = 0, # effect of binary moderator
+
+                                    zc.star = 0.5,  # level of moderator to consider
                                     zb.star = 1,
-                                    
-                                    zc.ref = 2,  # reference levels of moderator to consider
+
+                                    zc.ref = 2,  # comparison levels of moderator to consider
                                     zb.ref = 0,
-                                    
-                                    # Previous choices:
-                                    # zc.star = 0.5,  # "active" level of moderator to consider
-                                    # zb.star = 1,
-                                    #
-                                    # zc.ref = 2,  # reference levels of moderator to consider
-                                    # zb.ref = 0,
-                                    
-                                    V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
-                                    Vzeta = NA, # to be filled in
+
+                                    V = c( .2 ), # residual variance
+                                    #Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
+                                    Vzeta = 0,
+
                                     muN = NA,  # just a placeholder; to be filled in later
-                                    minN = c(50, 800),
+                                    minN = c(50),
                                     sd.w = c(1),
                                     tail = "above",
-                                    true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
-                                    TheoryP = c(0.05, 0.1, 0.2, 0.5),
+                                    true.effect.dist = c("normal"),
+                                    TheoryP = c(0.2),
                                     start.at = 1 ) )
   
-  # define clustering scenarios
-  # m = -99 will be no clustering
-  # m = 99 will be clustering
-  scen.params$clustered = (scen.params$m == 99)
-  scen.params$Vzeta[ scen.params$m == -99 ] = 0
-  scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
-  scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
-  scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
   
-  # sanity check
-  scen.params %>% group_by(clustered) %>%
-    summarise( mean(m/k),
-               mean(Vzeta/V) )
-  
-  # just to see it
-  data.frame(scen.params)
-  
-  n.scen = nrow(scen.params)
-  
-  #as.data.frame(scen.params)
+  # # full set of scenarios
+  # # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
+  # ( scen.params = make_scen_params( method = "bt.smart",
+  #                                   calib.method = c("MR", "DL"),
+  #                                   
+  #                                   k = rev(c(10, 20, 50, 100, 150)),
+  #                                   m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
+  #                                   b0 = 0, # intercept
+  #                                   bc = 0.5, # effect of continuous moderator
+  #                                   bb = 1, # effect of binary moderator
+  #                                   
+  #                                   zc.star = 0.5,  # "active" level of moderator to consider
+  #                                   zb.star = 1,
+  #                                   
+  #                                   zc.ref = 2,  # reference levels of moderator to consider
+  #                                   zb.ref = 0,
+  #                                   
+  #                                   # Previous choices:
+  #                                   # zc.star = 0.5,  # "active" level of moderator to consider
+  #                                   # zb.star = 1,
+  #                                   #
+  #                                   # zc.ref = 2,  # reference levels of moderator to consider
+  #                                   # zb.ref = 0,
+  #                                   
+  #                                   V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
+  #                                   Vzeta = NA, # to be filled in
+  #                                   muN = NA,  # just a placeholder; to be filled in later
+  #                                   minN = c(50, 800),
+  #                                   sd.w = c(1),
+  #                                   tail = "above",
+  #                                   true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
+  #                                   TheoryP = c(0.05, 0.1, 0.2, 0.5),
+  #                                   start.at = 1 ) )
+  # 
+  # # define clustering scenarios
+  # # m = -99 will be no clustering
+  # # m = 99 will be clustering
+  # scen.params$clustered = (scen.params$m == 99)
+  # scen.params$Vzeta[ scen.params$m == -99 ] = 0
+  # scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
+  # scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
+  # scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
+  # 
+  # # sanity check
+  # scen.params %>% group_by(clustered) %>%
+  #   summarise( mean(m/k),
+  #              mean(Vzeta/V) )
+  # 
+  # # just to see it
+  # data.frame(scen.params)
+  # 
+  # n.scen = nrow(scen.params)
+  # 
+  # #as.data.frame(scen.params)
   
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
@@ -265,8 +265,7 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  # the one that returned 6 errors along the lines of all values of t being equal to some number 
-  scen = 1308
+  scen = 1
   data.frame(scen.params %>% filter(scen.name == scen))
 }
 

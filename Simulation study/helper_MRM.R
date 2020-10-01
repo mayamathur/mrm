@@ -352,10 +352,12 @@ prop_stronger_mr = function(dat,
                           R = boot.reps, 
                           statistic = function(original, indices) {
                             
-                            if ( p$method == "bt.smart" ) {
+                            # this needs to happen even if p$method = no.ci because
+                            #  these are bias corrections for the MEAN
+                            #if ( p$method == "bt.smart" ) {
                               bNest = original[indices,]
                               b = bNest %>% unnest(data)
-                            }
+                            #}
                             
                             tryCatch({
                               mb = robu( yi ~ Zc + Zb, 
