@@ -1,61 +1,5 @@
 
 
-# quick look at bias corrections
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-28 bias corrections")
-
-s2 = fread("stitched_MR_and_params_methods.csv")
-dim(s2)
-names(s2)
-
-# s2 = s2 %>% select(-c("V1", "X.1", "NA"))
-# s2 = s2 %>% select(-c("V1"))
-# 
-# s2 = s2[ , !names(s2) == "NA" ]
-
-# # for some reason, above does not have scen.name.in.main
-# scen.params = read.csv("scen_params.csv")
-# s2 = merge(s2,
-#            scen.params[ , c("scen.name", "scen.name.in.main") ],
-#            by = "scen.name",
-#            all.x = TRUE)
-# table(is.na(s2$scen.name.in.main))  # should always be FALSE
-
-t = s2 %>% group_by(scen.name) %>%
-              mutate(PhatRelBias = mean( abs(Phat - TheoryP[1])/TheoryP[1], na.rm = TRUE ),
-                     CoverPhat = mean( CoverPhat, na.rm = TRUE),
-                     PhatBtFail = mean(PhatBtFail),
-
-                     DiffRelBias = mean( abs(Diff - TheoryDiff[1])/TheoryDiff[1], na.rm = TRUE ),
-                     CoverDiff = mean( CoverDiff, na.rm = TRUE),
-                     
-                     EstMeanRelBias = mean( abs(EstMean - TrueMean[1])/TrueMean[1], na.rm = TRUE ),
-                     EstVarRelBias = mean( abs(EstVar - TrueMean[1])/TrueMean[1], na.rm = TRUE ) ) %>%
-  
-  # here need to group on scen.name.in.main 
-              group_by(scen.name.in.main, calib.method) %>%
-              summarise_at( c("PhatRelBias", "CoverPhat", "PhatBtFail", "DiffRelBias", "CoverDiff", "EstMeanRelBias", "EstVarRelBias"), function(x) round( mean(x), 2) )
-
-
-data.frame(t)
-
-
-# within each scen, ratio of improvement by using parameters rather than MR estimates
-# **using parameters improves relative bias and coverage by >2-fold each
-data.frame( t %>% group_by(scen.name.in.main) %>% 
-              mutate( DiffRelBiasRatio = DiffRelBias[ calib.method == "params" ]/DiffRelBias[ calib.method == "MR" ],
-                      DiffCoverRatio = CoverDiff[ calib.method == "params" ]/CoverDiff[ calib.method == "MR" ] ) %>%
-              
-              group_by(calib.method) %>%
-              summarise( mean(DiffRelBias),
-                         mean(CoverDiff),
-                         mean(DiffRelBiasRatio), 
-                         mean(DiffCoverRatio) ) )
-
-# **note that even using the parameters results in relative bias of 1 because these scenarios
-#  have such tiny TheoryDiffs:
-summary(s2$TheoryDiff)
-
-
 ################################## PRELIMINARIES ##################################
 
 rm(list=ls())
@@ -64,10 +8,11 @@ library(dplyr)
 library(xtable)
 library(data.table)
 library(tibble)
+library(testthat)
 
 options(scipen=999)
 
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-26"
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/**2020-9-26 main sims (in RSM_1)"
 results.dir = prepped.data.dir
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
@@ -98,7 +43,7 @@ s = s %>% filter( calib.method.pretty %in% to.analyze &
 # s = s %>% filter( unique.scen %in% agg$unique.scen )
 
 
-
+summary(s$repTime)/60
 
 ################################## I^2 AND ICC TO REPORT ##################################
 
@@ -138,10 +83,10 @@ obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail",
 outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
 
 
-obsVars = c("k", "muN", "Phat", "Diff", "EstMean", "EstVar", "PhatBtFail",
-            # last two are only somewhat observed:
-            "true.effect.dist", "clustered")
-outcomes = c("CoverDiff")
+# obsVars = c("k", "muN", "Phat", "Diff", "EstMean", "EstVar", "PhatBtFail",
+#             # last two are only somewhat observed:
+#             "true.effect.dist", "clustered")
+# outcomes = c("CoverDiff")
 
 # at scenario level rather than individual iterate level
 for (i in outcomes){
@@ -194,6 +139,8 @@ for (i in outcomes){
   if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
 }
 
+
+# look at results
 res
 
 bestMod
@@ -218,9 +165,10 @@ data.frame( my_summarise(dat = agg,
 
 # reproduce previous findings
 temp = agg %>% filter( bca.success>0.05 &
-  clustered == FALSE & 
-  V > 0.0025 & 
-  V < 0.64 )
+                         clustered == FALSE & 
+                         V > 0.0025 & 
+                         V < 0.64 &
+                         EstVar > 0 )  # we previously discarded these reps
 
 data.frame( my_summarise(dat = temp,
                          description = "Reproduce previous") )
@@ -265,16 +213,22 @@ View(t)
 
 agg12 = make_agg_data(s %>% filter(PhatBtFail==0) )
 
+agg8 = agg %>% filter( bca.success > .10 )
+
 agg6 = make_agg_data(s %>% filter(k >= 100) )
 
 agg7 = make_agg_data(s %>% filter( k >= 100 &
                                      !(clustered == TRUE & true.effect.dist == "expo") ) ) 
 
-
+agg9 = make_agg_data(s %>% filter( k >= 100 &
+                                     true.effect.dist == "normal" ) ) 
 
 selectVars = "Diff"
 t = rbind( my_summarise(dat = agg,
                         description = "All reps"),
+           
+           my_summarise(agg8,
+                        description = "BCA success > 0.10"),
            
            my_summarise(agg12,
                         description = "No bt fails"),
@@ -283,128 +237,169 @@ t = rbind( my_summarise(dat = agg,
                         description = "k>=100"),
            
            my_summarise( agg7,
-                         description = "k>=100/not clustered expo")
+                         description = "k>=100/not clustered expo"),
+           
+           my_summarise( agg9,
+                         description = "k>=100/normal")
 )  
 
 View(t)
 
 
-
-################################## STATS AND TABLES FOR PAPER: ALL SCENARIOS ##################################
-
-##### Summary Stats Reported In-line #####
-# across all scenarios
-my_summarise(agg)
-# **important: average relative bias of heterogeneity estimation is 0.68
-# so that seems like a reasonable benchmark for our metrics
-
-# was performance different in clustered vs. unclustered?
-data.frame( my_summarise( agg %>% group_by(clustered) ) )
+# bm: try getting an approximation of bootstrapping the bootstrap by bias-correcting the bootstrap SDs by the scenario's average bias
 
 
 
-data.frame( my_summarise( agg %>% filter(k>100) %>% group_by(clustered ) ) )
 
-# compare PhatRelBias to means of iterates rather than of scenarios
-mean(s$PhatRelBias, na.rm = TRUE)
+################################## BIAS CORRECTIONS ##################################
 
-# bm
-
-#@temp: look at relationship between relative bias in variance and in Phat estimation
-# @interesting and maybe convincing
-plot(agg$EstVarRelBias, agg$PhatRelBias)
-xmax = max( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
-xmin = min( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
-
-library(ggplot2)
-ggplot( data = agg,
-        aes( x = EstVarRelBias,
-             y = PhatRelBias ) ) +
-  geom_point(alpha = 0.4) +
-  geom_abline(intercept = 0,
-              slope = 1) +
-  scale_x_continuous( limits = c(xmin, xmax) ) +
-  scale_y_continuous( limits = c(xmin, xmax) ) +
-  theme_classic()
-
-# **report this?
-summary( lm(agg$EstVarRelBias ~ agg$PhatRelBias) )
+# these used 1000 boot reps for the bias corrections and CIs
 
 
-##### Summary Table #####
-( t1 = data.frame( my_summarise( agg %>% group_by(k, V) ) ) )
-print( xtable(t1), include.rownames = FALSE )
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-10-1 correct meta-regression (Supplement)")
+
+s2b = fread("fake.csv")
+
+s3b = make_s3_data(s2b)
+
+# one row per scenario, so 3 rows per scen.name.in.main
+aggb = make_agg_data(s3b)
+
+selectVars = "all"
+
+t = data.frame( rbind( my_summarise(dat = aggb %>% filter(calib.method == "MR"), description = "MR"),
+                   my_summarise(dat = aggb %>% filter(calib.method == "MR bt both correct"), description = "Bt correct"),
+                   my_summarise(dat = aggb %>% filter(calib.method == "params"), description = "params") ) )
+
+t = t %>% select("Scenarios", "PhatBias", "PhatRelBias", "DiffBias", "DiffRelBias")
+t
+
+# put this in the paper! 
+
+# yes, the bias corrections make the bias worse...
 
 
 
-################################## STATS AND TABLES FOR PAPER: K>=100, THEORYP > 0.05 ##################################
-
-##### Summary Stats Reported In-line #####
-
-# for Diff
-# now working with iterate-level data in order to use only observable variables:
-t = s %>% 
-  filter( k >= 50 ) %>%
-  summarise( mean(DiffRelBias),
-             mean(EstVarRelBias) )
-colMeans(t)
-# **this criterion gets relative bias to be similar to the overall 0.35 seen for the heterogeneity estimate
 
 
-# for Phat
-t = s %>% 
-  #filter(true.effect.dist == "normal") %>%
-  #group_by(unique.scen) %>%  # THE GROUP BY CHANGES THE DIRECTION OF THE FILTERING EFFECT...
-  summarise( mean(PhatRelBias),
-             mean(EstVarRelBias) )
-colMeans(t)
+##### OLD STUFF:
 
-
-
-# for Phat coverage
-t = agg %>% 
-  #filter( V > 0.05) %>%
-  #group_by(unique.scen) %>%  # THE GROUP BY CHANGES THE DIRECTION OF THE FILTERING EFFECT...
-  summarise( mn = mean(CoverPhat, na.rm = TRUE),
-             min = min(CoverPhat, na.rm = TRUE),
-             Pbad = mean(CoverPhat<0.85, na.rm=TRUE))
-colMeans(t)
-
-
-# bm: ~~could the issue be throwing away boot reps that don't converge??
-# look at scens with poor coverage
-temp = agg %>% 
-  filter(CoverPhat < 0.7)
-table(temp$clustered)
-
-param.vars = c("scen.name",
-               #"Method",
-               #"calib.method",
-               #"calib.method.pretty",
-               "k",
-               "m",
-               "V",
-               "Vzeta",
-               "minN",
-               "true.effect.dist",
-               "TheoryP")
-
-View( temp %>% select(CoverPhat, param.vars, ICCpop) )
-
-# clustered does worse for coverage
-my_summarise(agg %>% filter(clustered == FALSE))
-
-mean(temp$PhatBtSD - temp$PhatEmpSD)   # very similar, so not the fault of the SD, I think
-mean(temp$PhatRelBias)  # actually less biased than full dataset?
-mean(temp$PhatAbsBias) 
-
-my_summarise( agg %>% filter( m>50 & k>50 & EstVar>0.05) )
-
-mean(agg$CoverPhat[agg$clustered == TRUE]<.85)
-mean(agg$CoverPhat[agg$clustered == FALSE]<.85)
-### end searhcinfg
-
-
-##### Summary Table #####
-( t2 = data.frame( my_summarise( agg %>% filter( k >= 50) %>% group_by(k, V) ) ) )
-print( xtable(t2), include.rownames = FALSE )
+# ################################## STATS AND TABLES FOR PAPER: ALL SCENARIOS ##################################
+# 
+# ##### Summary Stats Reported In-line #####
+# # across all scenarios
+# my_summarise(agg)
+# # **important: average relative bias of heterogeneity estimation is 0.68
+# # so that seems like a reasonable benchmark for our metrics
+# 
+# 
+# # was performance different in clustered vs. unclustered?
+# data.frame( my_summarise( agg %>% group_by(clustered) ) )
+# 
+# 
+# 
+# data.frame( my_summarise( agg %>% filter(k>100) %>% group_by(clustered ) ) )
+# 
+# # compare PhatRelBias to means of iterates rather than of scenarios
+# mean(s$PhatRelBias, na.rm = TRUE)
+# 
+# # bm
+# 
+# #@temp: look at relationship between relative bias in variance and in Phat estimation
+# # @interesting and maybe convincing
+# plot(agg$EstVarRelBias, agg$PhatRelBias)
+# xmax = max( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
+# xmin = min( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
+# 
+# library(ggplot2)
+# ggplot( data = agg,
+#         aes( x = EstVarRelBias,
+#              y = PhatRelBias ) ) +
+#   geom_point(alpha = 0.4) +
+#   geom_abline(intercept = 0,
+#               slope = 1) +
+#   scale_x_continuous( limits = c(xmin, xmax) ) +
+#   scale_y_continuous( limits = c(xmin, xmax) ) +
+#   theme_classic()
+# 
+# # **report this?
+# summary( lm(agg$EstVarRelBias ~ agg$PhatRelBias) )
+# 
+# 
+# ##### Summary Table #####
+# ( t1 = data.frame( my_summarise( agg %>% group_by(k, V) ) ) )
+# print( xtable(t1), include.rownames = FALSE )
+# 
+# 
+# 
+# ################################## STATS AND TABLES FOR PAPER: K>=100, THEORYP > 0.05 ##################################
+# 
+# ##### Summary Stats Reported In-line #####
+# 
+# # for Diff
+# # now working with iterate-level data in order to use only observable variables:
+# t = s %>% 
+#   filter( k >= 50 ) %>%
+#   summarise( mean(DiffRelBias),
+#              mean(EstVarRelBias) )
+# colMeans(t)
+# # **this criterion gets relative bias to be similar to the overall 0.35 seen for the heterogeneity estimate
+# 
+# 
+# # for Phat
+# t = s %>% 
+#   #filter(true.effect.dist == "normal") %>%
+#   #group_by(unique.scen) %>%  # THE GROUP BY CHANGES THE DIRECTION OF THE FILTERING EFFECT...
+#   summarise( mean(PhatRelBias),
+#              mean(EstVarRelBias) )
+# colMeans(t)
+# 
+# 
+# 
+# # for Phat coverage
+# t = agg %>% 
+#   #filter( V > 0.05) %>%
+#   #group_by(unique.scen) %>%  # THE GROUP BY CHANGES THE DIRECTION OF THE FILTERING EFFECT...
+#   summarise( mn = mean(CoverPhat, na.rm = TRUE),
+#              min = min(CoverPhat, na.rm = TRUE),
+#              Pbad = mean(CoverPhat<0.85, na.rm=TRUE))
+# colMeans(t)
+# 
+# 
+# # bm: ~~could the issue be throwing away boot reps that don't converge??
+# # look at scens with poor coverage
+# temp = agg %>% 
+#   filter(CoverPhat < 0.7)
+# table(temp$clustered)
+# 
+# param.vars = c("scen.name",
+#                #"Method",
+#                #"calib.method",
+#                #"calib.method.pretty",
+#                "k",
+#                "m",
+#                "V",
+#                "Vzeta",
+#                "minN",
+#                "true.effect.dist",
+#                "TheoryP")
+# 
+# View( temp %>% select(CoverPhat, param.vars, ICCpop) )
+# 
+# # clustered does worse for coverage
+# my_summarise(agg %>% filter(clustered == FALSE))
+# 
+# mean(temp$PhatBtSD - temp$PhatEmpSD)   # very similar, so not the fault of the SD, I think
+# mean(temp$PhatRelBias)  # actually less biased than full dataset?
+# mean(temp$PhatAbsBias) 
+# 
+# my_summarise( agg %>% filter( m>50 & k>50 & EstVar>0.05) )
+# 
+# mean(agg$CoverPhat[agg$clustered == TRUE]<.85)
+# mean(agg$CoverPhat[agg$clustered == FALSE]<.85)
+# ### end searhcinfg
+# 
+# 
+# ##### Summary Table #####
+# ( t2 = data.frame( my_summarise( agg %>% filter( k >= 50) %>% group_by(k, V) ) ) )
+# print( xtable(t2), include.rownames = FALSE )

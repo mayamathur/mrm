@@ -56,7 +56,7 @@ if( is.na(s[1,1]) ) s = s[-1,]  # delete annoying NA row
 write.csv(s, paste(.results.stitched.write.path, .stitch.file.name, sep="/") )
 
 # are we there yet?
-nrow(s) / (96*500)  # main sims: 1600*500, bias correction sims: 96*500
+nrow(s) / (1600*500)  # main sims: 1600*500, bias correction sims: 32*3*500
 length(unique(s$scen.name))  # main sims: 1600; bias correction sims: 26
 
 ##### Look for Missed Jobs #####

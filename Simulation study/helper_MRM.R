@@ -2,6 +2,68 @@
 # audited the post-NPPhat parts 2020-6-17
 
 
+make_s3_data = function(.s){
+  
+  # IMPORTANT NOTE: if you add variables here, need to add them to analysis.vars
+  #  inside make_agg_data
+  #  vector above so that they are grouped in the dplyr work below
+  s3 = .s %>%
+    # iterate-level states:
+    mutate( 
+      # bias-corrected Phat and Diff (the "2" suffix)
+      # using the bootstrap mean
+      Phat2 = Phat - (PhatBtMn - Phat),
+      LogitPhat = truncLogit(Phat),
+      LogitPhat2 = LogitPhat - ( LogitPhatBtMn - LogitPhat ),
+      Diff2 = Diff - (DiffBtMn - Diff),
+      
+      PhatBias = (Phat - TheoryP),
+      Phat2Bias = (Phat2 - TheoryP),
+      # not doing LogitPhat on its own because redundant with Phat itself
+      LogitPhat2Bias = ( expit(LogitPhat2) - TheoryP ),  # @note this is on the exponentiated scale for consistency with the others
+      
+      DiffBias = (Diff - TheoryDiff),
+      Diff2Bias = (Diff2 - TheoryDiff),
+      
+      PhatAbsBias = abs(Phat - TheoryP),
+      Phat2AbsBias = abs(Phat2 - TheoryP),
+      # not doing LogitPhat on its own because redundant with Phat itself
+      LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP ),
+      
+      DiffAbsBias = abs(Diff - TheoryDiff),
+      Diff2AbsBias = abs(Diff2 - TheoryDiff),
+      
+      # @note that these are relative ABSOLUTE bias
+      PhatRelBias = PhatAbsBias/TheoryP,
+      Phat2RelBias = Phat2AbsBias/TheoryP,
+      LogitPhat2RelBias = LogitPhat2AbsBias/TheoryP,
+      
+      DiffRelBias = DiffAbsBias/TheoryDiff,
+      Diff2RelBias = Diff2AbsBias/TheoryDiff,
+      
+      # diagnostics
+      EstMeanAbsBias = abs(EstMean - TrueMean),
+      EstMeanRelBias = EstMeanAbsBias / TrueMean,
+      
+      EstVarAbsBias = abs(EstVar - TrueVar),
+      EstVarRelBias = EstVarAbsBias / TrueVar )
+  
+  # recode calib.method
+  s3$calib.method.pretty = NA
+  s3$calib.method.pretty[ s3$calib.method == "DL" ] = "Two-stage"
+  s3$calib.method.pretty[ s3$calib.method == "MR" ] = "One-stage"
+  s3$calib.method.pretty[ s3$calib.method == "params" ] = "Parameters (diagnostic)"
+  s3$calib.method.pretty[ s3$calib.method == "MR bt mean both correct" ] = "One-stage, bias-corrected"
+  
+  # remove dumb columns
+  if ( "V1" %in% names(s3) ) s3 = s3 %>% select( -c("V1") )
+  if ( "X.1" %in% names(s3) ) s3 = s3 %>% select( -c("X.1") )
+  
+  return(s3)
+}
+
+
+
 
 # fn for aggregating so we can look at different
 #  iterate-level filtering rules
@@ -349,7 +411,7 @@ prop_stronger_mr = function(dat,
     tryCatch({
       boot.res = my_boot( data = datNest, 
                           parallel = "multicore",
-                          R = boot.reps, 
+                          R = 500,  #@ note this uses fewer bootstrap iterates 
                           statistic = function(original, indices) {
                             
                             # this needs to happen even if p$method = no.ci because

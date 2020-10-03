@@ -111,16 +111,20 @@ write.csv(scen.params, "scen_params.csv")
 scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Simulation\ study\ results/2020-9-28\ bias\ corrections/scen_params.csv mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
 
 
-################################# FOR 2020-9-28 BIAS CORRECTIONS ################################# 
+################################# FOR 2020-10-1 BIAS CORRECTIONS ################################# 
 
 
 # data with just params method and MR method
 setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-28 bias corrections")
-s2 = fread("stitched_MR_and_params_methods.csv")
 scen.params = fread("scen_params.csv")
 
 # avoid reusing scen names
-( max.scen.name = max(agg$scen.name, s2$scen.name) )
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-29 bias corrections")
+x = fread("stitched.csv") %>% select(-c("V1", "X", "X.1"))
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-28 bias corrections")
+x2 = fread("stitched_MR_and_params_methods.csv") %>% select(-c("V1", "X"))
+
+( max.scen.name = max(x$scen.name, x2$scen.name) )
 
 # only run the ones with double-bootstrapping
 scen.params = scen.params %>% filter( calib.method == "MR bt both correct" )
@@ -130,12 +134,9 @@ dim(scen.params)
 # just look at bias for now
 scen.params$method = "no.ci"
 
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-29 bias corrections")
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-10-1 bias corrections")
 write.csv(scen.params, "scen_params.csv")
 
 # push the new scen params to Sherlock
-scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Simulation\ study\ results/2020-9-29\ bias\ corrections/scen_params.csv mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
-
-
-
+scp /Users/mmathur/Dropbox/Personal\ computer/Independent\ studies/2020/Meta-regression\ metrics\ \(MRM\)/Simulation\ study\ results/2020-10-1\ bias\ corrections/scen_params.csv mmathur@login.sherlock.stanford.edu:/home/groups/manishad/MRM
 

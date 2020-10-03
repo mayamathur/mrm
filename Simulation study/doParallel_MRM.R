@@ -34,14 +34,14 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 50  # for main sims
+  sim.reps = 500  # for main sims
   # used boot.reps=5,000 in NPPhat but have reduced to 1,000
   # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
   # JUST TO LOOK AT TIMEOUT ISSUE:
   # for largest scenario (k=150) with method MR and boot.reps=50 and sim.reps=100, one sbatch took 15 min
   #  so boot.reps=1,000 should be about 5 hrs
   # reducing sim.reps to 50 should be about 2.5 hrs
-  boot.reps = 1000
+  boot.reps = 10000
   
   
   # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
@@ -150,8 +150,8 @@ if ( run.local == TRUE ) {
   
   
   # debug cluster error
-  ( scen.params = make_scen_params( method = c("no.ci"),  # "bt.smart" or "no.ci"
-                                    calib.method = c("MR bt both correct"),
+  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
+                                    calib.method = c("MR"),
                                     #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
                                     k = c(50),
                                     m = c(50), # @NEW,
@@ -333,9 +333,7 @@ if ( run.local == TRUE ) {
         btNClusters = NA
         
         tryCatch({
-          
-          # bm
-          
+  
           # nest by cluster in case we need to do cluster bootstrap
           # now has one row per cluster
           # works whether there is clustering or not
@@ -367,8 +365,13 @@ if ( run.local == TRUE ) {
                                                              zc.ref = p$zc.ref,
                                                              zb.ref = p$zb.ref,
                                                              calib.method = p$calib.method )
-                                  # @TEMP ONLY - PUT FAKE ERROR IN 50% OF ITERATES
-                                  #if ( rbinom( n=1, size=2, prob = .2) == 1 ) stop("Fake error")
+                                  
+                                  # bm
+                                  # @DOUBLE-BOOTSTRAPPING:
+                                  # in here, would generate resamples from b.stats, calculate their SDs, 
+                                  #  and record their bias relative to empirical SD of bootstraps from 
+                                  #  all boot reps?
+                                  #  
                                   
                                   # return the stats of interest
                                   # order of stats has to match indices in CI tryCatch loops below
