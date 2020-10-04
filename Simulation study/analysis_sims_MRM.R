@@ -122,7 +122,6 @@ for (i in outcomes){
   
   
   # best subsets
-  # bm
   # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
   library(rFSA)
   string = paste( i, " ~ 1", sep="" )
@@ -246,8 +245,127 @@ t = rbind( my_summarise(dat = agg,
 View(t)
 
 
-# bm: try getting an approximation of bootstrapping the bootstrap by bias-correcting the bootstrap SDs by the scenario's average bias
 
+################################## COMPARE TO RSM_0 SIMS ##################################
+
+
+
+##### Current Sims #####
+
+# sanity check: raw data
+
+setwd(prepped.data.dir)
+
+# stitched raw
+sr = fread("stitched_main_sims.csv") %>% filter(calib.method == "MR")
+# just take means without aggregating by scenario
+# no filtering
+sr %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) ),
+                  DiffAbsBias = mean( abs(Diff-TheoryDiff) ),
+                  CoverPhat = mean(CoverPhat, na.rm = TRUE),
+                  CoverDiff = mean(CoverDiff, na.rm = TRUE),
+                  DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
+                  miss = mean(is.na(CoverDiff)))
+
+selectVars = "all"
+data.frame( my_summarise(dat = agg,
+                         description = "Old (all)") )
+# ^ these two agree
+
+
+# filter in same way as old sims
+table(agg$calib.method)
+nrow(agg)
+temp = agg %>% filter( #bca.success>0.05 &
+                         clustered == FALSE & 
+                         V > 0.0025 & 
+                         V < 0.64 &
+                         EstVar > 0 )  # we previously discarded these reps
+
+selectVars = "all"
+data.frame( my_summarise(dat = temp,
+                         description = "Reproduce previous") )
+
+
+
+##### Old Sims #####
+
+# old raw
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-6-19 merged results in RSM_0")
+sro = fread("s3_dataset_MRM.csv") %>% filter(calib.method == "MR")
+aggo = fread("agg_dataset_with_bca_failures_MRM.csv") %>% filter(calib.method == "MR")
+
+sro %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) / TheoryP ),
+                  DiffAbsBias = mean( abs(Phat-TheoryP) / TheoryP ),
+                  CoverPhat = mean(CoverPhat, na.rm = TRUE),
+                  CoverDiff = mean(CoverDiff, na.rm = TRUE),
+                  DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
+                  miss = mean(is.na(CoverDiff)))
+# **strangely, diff CI was actually SMALLER in old sims AND slightly more abs bias
+#  yet better coverage
+
+# with BCA failures
+aggo %>% summarise( PhatAbsBias = mean(PhatAbsBias),
+                    DiffAbsBias = mean(DiffAbsBias),
+                    CoverPhat = mean(CoverPhat, na.rm = TRUE),
+                    CoverDiff = mean(CoverDiff, na.rm = TRUE) )
+# ^these two, from the old sims, pretty much agree
+
+
+# should be similar
+nrow(aggo); nrow(temp)
+
+
+# results are definitely worse now
+
+
+##### Compare Scenario-by-Scenario #####
+
+
+# bm1
+
+param.vars = c(
+               "k",
+               "V",
+               #"Vzeta",
+               "minN",
+               "true.effect.dist",
+               "TheoryP")
+
+# merged data
+aggo$group = "old"
+temp$group = "new"
+aggm = merge( aggo, temp, by = param.vars )
+
+library(ggplot2)
+
+summary( lm(CoverDiff.y ~ CoverDiff.x, data = aggm) )  # new data have worse coverage
+summary( lm(DiffAbsBias.y ~ DiffAbsBias.x, data = aggm) )  # but slightly LESS abs bias
+summary( lm(DiffCIWidth.y ~ DiffCIWidth.x, data = aggm) )  # new data have slightly LESS abs bias
+
+
+mean(aggm$DiffCIWidth.x, na.rm = TRUE)
+mean(aggm$DiffCIWidth.y, na.rm = TRUE)
+
+
+ggplot( data = aggm, 
+        aes(x = CoverDiff.x,
+            y = CoverDiff.y)) + 
+  geom_abline(slope=1, intercept=0) +
+  geom_point() +
+  theme_classic() +
+  scale_x_continuous( limits = c(0,1) ) +
+  scale_y_continuous( limits = c(0,1) ) 
+
+
+ggplot( data = aggm, 
+        aes(x = DiffAbsBias.x,
+            y = DiffAbsBias.y)) + 
+  geom_abline(slope=1, intercept=0) +
+  geom_point() +
+  theme_classic() +
+  scale_x_continuous( limits = c(0,1) ) +
+  scale_y_continuous( limits = c(0,1) ) 
 
 
 
@@ -258,7 +376,8 @@ View(t)
 
 setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-10-1 correct meta-regression (Supplement)")
 
-s2b = fread("fake.csv")
+# "b" for "bias correction"
+s2b = fread("stitched.csv")
 
 s3b = make_s3_data(s2b)
 

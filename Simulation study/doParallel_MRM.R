@@ -34,14 +34,14 @@ if (run.local == FALSE) {
   
   # simulation reps to run within this job
   # this need to match n.reps.in.doParallel in the genSbatch script
-  sim.reps = 500  # for main sims
+  sim.reps = 1  # CLUSTER: for main sims
   # used boot.reps=5,000 in NPPhat but have reduced to 1,000
   # MR bt mn both correct still times out with 5:00:00 at 1000 boot.reps
   # JUST TO LOOK AT TIMEOUT ISSUE:
   # for largest scenario (k=150) with method MR and boot.reps=50 and sim.reps=100, one sbatch took 15 min
   #  so boot.reps=1,000 should be about 5 hrs
   # reducing sim.reps to 50 should be about 2.5 hrs
-  boot.reps = 10000
+  boot.reps = 1000  # cluster
   
   
   # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
@@ -149,97 +149,97 @@ if ( run.local == TRUE ) {
   source("helper_MRM.R")
   
   
-  # debug cluster error
-  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
-                                    calib.method = c("MR"),
-                                    #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-                                    k = c(50),
-                                    m = c(50), # @NEW,
-                                    #m = 100,
-
-                                    b0 = 0, # intercept
-                                    bc = 0, # effect of continuous moderator
-                                    bb = 0, # effect of binary moderator
-
-                                    zc.star = 0.5,  # level of moderator to consider
-                                    zb.star = 1,
-
-                                    zc.ref = 2,  # comparison levels of moderator to consider
-                                    zb.ref = 0,
-
-                                    V = c( .2 ), # residual variance
-                                    #Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
-                                    Vzeta = 0,
-
-                                    muN = NA,  # just a placeholder; to be filled in later
-                                    minN = c(50),
-                                    sd.w = c(1),
-                                    tail = "above",
-                                    true.effect.dist = c("normal"),
-                                    TheoryP = c(0.2),
-                                    start.at = 1 ) )
-  
-  
-  # # full set of scenarios
-  # # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
-  # ( scen.params = make_scen_params( method = "bt.smart",
-  #                                   calib.method = c("MR", "DL"),
+  # # debug cluster error
+  # ( scen.params = make_scen_params( method = c("bt.smart.double"),  # "bt.smart" or "no.ci"
+  #                                   calib.method = c("MR"),
+  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+  #                                   k = c(50),
+  #                                   m = c(50), # @NEW,
+  #                                   #m = 100,
   #                                   
-  #                                   k = rev(c(10, 20, 50, 100, 150)),
-  #                                   m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
   #                                   b0 = 0, # intercept
-  #                                   bc = 0.5, # effect of continuous moderator
-  #                                   bb = 1, # effect of binary moderator
+  #                                   bc = 0, # effect of continuous moderator
+  #                                   bb = 0, # effect of binary moderator
   #                                   
-  #                                   zc.star = 0.5,  # "active" level of moderator to consider
+  #                                   zc.star = 0.5,  # level of moderator to consider
   #                                   zb.star = 1,
   #                                   
-  #                                   zc.ref = 2,  # reference levels of moderator to consider
+  #                                   zc.ref = 2,  # comparison levels of moderator to consider
   #                                   zb.ref = 0,
   #                                   
-  #                                   # Previous choices:
-  #                                   # zc.star = 0.5,  # "active" level of moderator to consider
-  #                                   # zb.star = 1,
-  #                                   #
-  #                                   # zc.ref = 2,  # reference levels of moderator to consider
-  #                                   # zb.ref = 0,
+  #                                   V = c( .2 ), # residual variance
+  #                                   #Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
+  #                                   Vzeta = 0,
   #                                   
-  #                                   V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
-  #                                   Vzeta = NA, # to be filled in
   #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50, 800),
+  #                                   minN = c(50),
   #                                   sd.w = c(1),
   #                                   tail = "above",
-  #                                   true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
-  #                                   TheoryP = c(0.05, 0.1, 0.2, 0.5),
+  #                                   true.effect.dist = c("normal"),
+  #                                   TheoryP = c(0.2),
   #                                   start.at = 1 ) )
   # 
-  # # define clustering scenarios
-  # # m = -99 will be no clustering
-  # # m = 99 will be clustering
-  # scen.params$clustered = (scen.params$m == 99)
-  # scen.params$Vzeta[ scen.params$m == -99 ] = 0
-  # scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
-  # scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
-  # scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
-  # 
-  # # sanity check
-  # scen.params %>% group_by(clustered) %>%
-  #   summarise( mean(m/k),
-  #              mean(Vzeta/V) )
-  # 
-  # # just to see it
-  # data.frame(scen.params)
-  # 
-  # n.scen = nrow(scen.params)
-  # 
-  # #as.data.frame(scen.params)
   
+  # full set of scenarios
+  # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
+  ( scen.params = make_scen_params( method = "bt.smart.double",
+                                    calib.method = c("MR", "DL"),
+
+                                    k = rev(c(10, 20, 50, 100, 150)),
+                                    m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
+                                    b0 = 0, # intercept
+                                    bc = 0.5, # effect of continuous moderator
+                                    bb = 1, # effect of binary moderator
+
+                                    zc.star = 0.5,  # "active" level of moderator to consider
+                                    zb.star = 1,
+
+                                    zc.ref = 2,  # reference levels of moderator to consider
+                                    zb.ref = 0,
+
+                                    # Previous choices:
+                                    # zc.star = 0.5,  # "active" level of moderator to consider
+                                    # zb.star = 1,
+                                    #
+                                    # zc.ref = 2,  # reference levels of moderator to consider
+                                    # zb.ref = 0,
+
+                                    V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
+                                    Vzeta = NA, # to be filled in
+                                    muN = NA,  # just a placeholder; to be filled in later
+                                    minN = c(50, 800),
+                                    sd.w = c(1),
+                                    tail = "above",
+                                    true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
+                                    TheoryP = c(0.05, 0.1, 0.2, 0.5),
+                                    start.at = 1 ) )
+
+  # define clustering scenarios
+  # m = -99 will be no clustering
+  # m = 99 will be clustering
+  scen.params$clustered = (scen.params$m == 99)
+  scen.params$Vzeta[ scen.params$m == -99 ] = 0
+  scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
+  scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
+  scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
+
+  # sanity check
+  scen.params %>% group_by(clustered) %>%
+    summarise( mean(m/k),
+               mean(Vzeta/V) )
+
+  # just to see it
+  data.frame(scen.params)
+
+  n.scen = nrow(scen.params)
+
+  #as.data.frame(scen.params)
+
   
   # sim.reps = 500  # reps to run in this iterate; leave this alone!
   # boot.reps = 1000
-  sim.reps = 500
-  boot.reps = 1000  # ~~ temp only
+  sim.reps = 100
+  boot.reps = 1000  # local
   
   
   library(foreach)
@@ -265,7 +265,7 @@ if ( run.local == TRUE ) {
   # set the number of cores
   registerDoParallel(cores=8)
   
-  scen = 1
+  scen = 7
   data.frame(scen.params %>% filter(scen.name == scen))
 }
 
@@ -275,283 +275,359 @@ if ( run.local == TRUE ) {
 
 
 #for ( scen in scen.params$scen.name ) {  # can't use this part on the cluster
-  
+
 # system.time is in seconds
-  rep.time = system.time({
-    rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
-      # for debugging:
-      #for ( i in 1:sim.reps ) {
+rep.time = system.time({
+  rs = foreach( i = 1:sim.reps, .combine=rbind ) %dopar% {
+    # for debugging:
+    #for ( i in 1:sim.reps ) {
+    
+    # extract simulation params for this scenario (row)
+    # exclude the column with the scenario name itself (col) 
+    p = scen.params[ scen.params$scen.name == scen, names(scen.params) != "scen.name"]
+    
+    
+    # true average effect size for this combination of moderators
+    TrueMean = p$b0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
+    
+    ##### Simulate Dataset #####
+    # simulates potentially clustered data
+    d = sim_data2( k = p$k, 
+                   m = p$m,
+                   b0 = p$b0, # intercept
+                   bc = p$bc, # effect of continuous moderator
+                   bb = p$bb, # effect of binary moderator 
+                   V = p$V,
+                   Vzeta = p$Vzeta,
+                   muN = p$muN, 
+                   minN = p$minN,
+                   sd.w = p$sd.w,
+                   true.effect.dist = p$true.effect.dist )
+    
+    ##### Get Meta-Regressive Phat for This Dataset #####
+    # internally bias-corrects the meta-regressive mean and heterogeneity
+    #  if asked (calib.method)
+    d.stats = prop_stronger_mr(d,
+                               zc.star = p$zc.star,
+                               zb.star = p$zb.star,
+                               zc.ref = p$zc.ref,
+                               zb.ref = p$zb.ref,
+                               calib.method = p$calib.method )
+    
+    # estimated mean at level "star" of effect modifiers
+    # this has already been bias-corrected if asked (calib.method)
+    EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
+    
+    
+    ##### Phat Difference #####
+    # Phat difference for two levels of moderators
+    PhatDiff = d.stats$Phat.diff
+    
+    ##### Bootstrap #####
+    
+    if ( grepl(pattern = "bt", x=p$method) ) {
       
-      # extract simulation params for this scenario (row)
-      # exclude the column with the scenario name itself (col) 
-      p = scen.params[ scen.params$scen.name == scen, names(scen.params) != "scen.name"]
+      Note = NA
+      # boot sanity checks that will be overwritten if bootstrap succeeds
+      btRows = NA
+      btNClusters = NA
+      
+      # will only be filled in if using bt.smart.double
+      bbt.sds.mat = matrix( c(NA, NA), nrow=1, ncol=2)
       
       
-      # true average effect size for this combination of moderators
-      TrueMean = p$b0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
-      
-      ##### Simulate Dataset #####
-      # simulates potentially clustered data
-      d = sim_data2( k = p$k, 
-                     m = p$m,
-                     b0 = p$b0, # intercept
-                     bc = p$bc, # effect of continuous moderator
-                     bb = p$bb, # effect of binary moderator 
-                     V = p$V,
-                     Vzeta = p$Vzeta,
-                     muN = p$muN, 
-                     minN = p$minN,
-                     sd.w = p$sd.w,
-                     true.effect.dist = p$true.effect.dist )
-      
-      ##### Get Meta-Regressive Phat for This Dataset #####
-      # internally bias-corrects the meta-regressive mean and heterogeneity
-      #  if asked (calib.method)
-      d.stats = prop_stronger_mr(d,
-                                 zc.star = p$zc.star,
-                                 zb.star = p$zb.star,
-                                 zc.ref = p$zc.ref,
-                                 zb.ref = p$zb.ref,
-                                 calib.method = p$calib.method )
-      
-      # estimated mean at level "star" of effect modifiers
-      # this has already been bias-corrected if asked (calib.method)
-      EstMean = d.stats$bhat0 + ( p$bc * p$zc.star ) + ( p$bb * p$zb.star )
-      
-      
-      ##### Phat Difference #####
-      # Phat difference for two levels of moderators
-      PhatDiff = d.stats$Phat.diff
-      
-      ##### Bootstrap #####
-
-      if ( grepl(pattern = "bt", x=p$method) ) {
+      tryCatch({
         
-        Note = NA
-        # boot sanity checks that will be overwritten if bootstrap succeeds
-        btRows = NA
-        btNClusters = NA
+        # nest by cluster in case we need to do cluster bootstrap
+        # now has one row per cluster
+        # works whether there is clustering or not
+        # because without clustering, the clusters are 1:nrow(data)
+        dNest = d %>% group_nest(cluster)
         
-        tryCatch({
-  
-          # nest by cluster in case we need to do cluster bootstrap
-          # now has one row per cluster
-          # works whether there is clustering or not
-          # because without clustering, the clusters are 1:nrow(data)
-          dNest = d %>% group_nest(cluster)
-          
-          # this is just the resampling part, not the CI estimation
-          boot.res = my_boot( data = dNest, 
-                              parallel = "multicore",
-                              R = boot.reps, 
-                              statistic = function(original, indices) {
-
-                                # bt.smart: allows for either independent or clustered observations
-                                #  as long as independent observations are each in own cluster
-                                if ( p$method == "bt.smart" ) {
-                                  bNest = original[indices,]
-                                  b = bNest %>% unnest(data)
-                                }
+        # this is just the resampling part, not the CI estimation
+        boot.res = my_boot( data = dNest, 
+                            parallel = "multicore",
+                            R = boot.reps, 
+                            statistic = function(original, indices) {
+                              
+                              # bt.smart: allows for either independent or clustered observations
+                              #  as long as independent observations are each in own cluster
+                              if ( p$method %in% c( "bt.smart", "bt.smart.double" ) ) {
+                                bNest = original[indices,]
+                                b = bNest %>% unnest(data)
+                              }
+                              
+                              tryCatch({
                                 
-                                tryCatch({
-                                  
-                                  # simple sanity checks on resampling
-                                  btRows = nrow(b)
-                                  btNClusters = length(unique(b$cluster))
-                                  
-                                  b.stats = prop_stronger_mr(dat = b,
-                                                             zc.star = p$zc.star,
-                                                             zb.star = p$zb.star,
-                                                             zc.ref = p$zc.ref,
-                                                             zb.ref = p$zb.ref,
-                                                             calib.method = p$calib.method )
-                                  
-                                  # bm
-                                  # @DOUBLE-BOOTSTRAPPING:
-                                  # in here, would generate resamples from b.stats, calculate their SDs, 
-                                  #  and record their bias relative to empirical SD of bootstraps from 
-                                  #  all boot reps?
-                                  #  
-                                  
-                                  
-                                  
-                                  # return the stats of interest
-                                  # order of stats has to match indices in CI tryCatch loops below
-                                  # and in returned results because of bt.means and bt.sds
-                                  c( as.numeric(b.stats["Phat"]),
-                                     as.numeric(b.stats["Phat.ref"]),
-                                     as.numeric(b.stats["Phat.diff"]),
-                                     as.numeric(b.stats["t2"]),
-                                     truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
-                                  )
-                                }, error = function(err){
-                        
-                                  return( rep(NA, 5) )
-                                })
+                                # simple sanity checks on resampling
+                                btRows = nrow(b)
+                                btNClusters = length(unique(b$cluster))
                                 
-                              } )
-          boot.res
-          
-          # boot diagnostics
-          bt.pfails =  as.numeric( colMeans( is.na(boot.res$t) ) )  # proportion of boot reps that failed (NAs)
-          bt.means = as.numeric( colMeans(boot.res$t, na.rm = TRUE) )
-          bt.sds = apply( boot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
-          
-          # get CIs for each estimand individually in case some work and others don't
-          tryCatch({
-            CI = boot.ci(boot.res, type = "bca", index = 1)
-            # put in nice vector format
-            PhatBootCIs = c( CI[[4]][4], CI[[4]][5] )
-          }, error = function(err){
-            PhatBootCIs <<- c(NA, NA)
-          } )
-          
-          
-          tryCatch({
-            CI = boot.ci(boot.res, type = "bca", index = 2)
-            PhatRefBootCIs = c( CI[[4]][4], CI[[4]][5] )
-            PhatRefBootSD = sd( boot.res$t[,2] )
-          }, error = function(err){
-            PhatRefBootCIs <<- c(NA, NA)
-          } )
-          
-          tryCatch({
-            CI = boot.ci(boot.res, type = "bca", index = 3)
-            DiffBootCIs = c( CI[[4]][4], CI[[4]][5] )
-          }, error = function(err){
-            DiffBootCIs <<- c(NA, NA)
-          } )
-          
-          tryCatch({
-            CI = boot.ci(boot.res, type = "bca", index = 5)
-            truncLogitBootCIs = c( CI[[4]][4], CI[[4]][5] )
-          }, error = function(err){
-            truncLogitBootCIs <<- c(NA, NA)
-          } )
-          
-          # this part happens only if bootstrapping fails completely
-          # not just CIs
-        }, error = function(err){
-          # one list item for each stat of interest (3),
-          #  and one sub-entry for lower/upper CI limit
-          n.ests = 5  # needs to match what's returned in boot.res
-          PhatBootCIs <<- c(NA, NA)
-          PhatRefBootCIs <<- c(NA, NA)
-          DiffBootCIs <<- c(NA, NA)
-          truncLogitBootCIs <<- c(NA, NA)
-          bt.means <<- rep(NA, n.ests)
-          bt.sds <<- rep(NA, n.ests)
-          bt.pfails <<- rep(NA, n.ests)
-          #boot.median <<- NA
-          Note <<- paste("Resampling failed completely: ", err$message, sep="")
-          #browser()
-        } )  # end of the big tryCatch loop for the whole boot() call
-        
-      }  # end part for both bootstrap methods
+                                b.stats = prop_stronger_mr(dat = b,
+                                                           zc.star = p$zc.star,
+                                                           zb.star = p$zb.star,
+                                                           zc.ref = p$zc.ref,
+                                                           zb.ref = p$zb.ref,
+                                                           calib.method = p$calib.method )
+                                
+                             
+                                
+                                # ~~~~~~~~ @INNER LOOP:
+                                # inner round of bootstrapping to try to correct the SD
+                                if ( p$method == "bt.smart.double" ) {
+
+
+                                  bboot.res = my_boot( data = bNest, # start from the BOOTSTRAP sample
+                                                       parallel = "multicore",
+                                                       R = boot.reps,
+                                                       statistic = function(original, indices) {
+
+                                                         # "bb" denotes inner bootstrap samples drawn from the initial bootstrap
+                                                         bbNest = original[indices,]
+                                                         bb = bbNest %>% unnest(data)
+
+                                                         tryCatch({
+
+                                                           bb.stats = prop_stronger_mr(dat = bb,
+                                                                                       zc.star = p$zc.star,
+                                                                                       zb.star = p$zb.star,
+                                                                                       zc.ref = p$zc.ref,
+                                                                                       zb.ref = p$zb.ref,
+                                                                                       calib.method = p$calib.method )
+
+
+                                                           # return the stats of interest
+                                                           # order of stats has to match indices in CI tryCatch loops below
+                                                           # and in returned results because of bt.means and bt.sds
+                                                           c( as.numeric(bb.stats["Phat"]),
+                                                              as.numeric(bb.stats["Phat.diff"]) )
+                                                         }, error = function(err){
+                                                           return( rep(NA, 2) )
+                                                         })  # end double-bootstrap tryCatch
+
+                                                       })  # end inner my_boot, resulting in bboot.res
+
+
+                                  # now bboot.res is the Phats and Diffs from the inner loop
+
+                                  # inner bootstrap estimate of sampling distribution
+                                  bbt.sds = apply( bboot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
+
+                                  # save bbt.sds to the matrix that persists across main-loop boot reps
+                                  bbt.sds.mat <<- rbind(bbt.sds.mat, bbt.sds)
+
+                                }  # end if ( p$method == "bt.smart.double" )
+
+                                # ~~~~~~~~ @END INNER LOOP
+                                
+                                
+                                # return the stats of interest from main bootstrapping part
+                                # order of stats has to match indices in CI tryCatch loops below
+                                # and in returned results because of bt.means and bt.sds
+                                c( as.numeric(b.stats["Phat"]),
+                                   as.numeric(b.stats["Phat.ref"]),
+                                   as.numeric(b.stats["Phat.diff"]),
+                                   as.numeric(b.stats["t2"]),
+                                   truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
+                                )
+                                
+                                
+                                
+                              }, error = function(err){
+                                
+                                return( rep(NA, 5) )
+                              })
+                              
+         
+
       
-      ##### No CI (for faster experimentation) #####
-      if ( p$method == "no.ci" ) {
-        n.ests = 5
-        Note = NA
-        PhatBootCIs = c(NA, NA)
-        PhatRefBootCIs = c(NA, NA)
-        DiffBootCIs = c(NA, NA)
-        truncLogitBootCIs <<- c(NA, NA)
-        bt.means = rep(NA, n.ests)
-        bt.sds = rep(NA, n.ests)
-        bt.pfails = rep(NA, n.ests)
-        btRows = NA
-        btNClusters = NA
-      }
-      
-      # order of things in bt.means, etc.
-      # as.numeric(b.stats["Phat"]),
-      # as.numeric(b.stats["Phat.ref"]),
-      # as.numeric(b.stats["Phat.diff"]),
-      # as.numeric(b.stats["t2"]),
-      # truncLogit( as.numeric(b.stats["Phat"]) )
-      
-      ##### Write Results #####
-      rows = data.frame( 
-        TrueMean = TrueMean,
-        # estimated mean at level "star" of effect modifiers
-        # will be the bias-corrected one if specified via method argument
-        EstMean = EstMean, 
+                            } )  # end "statistic" and the main my_boot loop
         
-        TrueVar = p$V,
-        EstVar = d.stats$t2,  # will be the bias-corrected one if specified via method argument
-        EstVarBtMn = bt.means[4],
-        
-        # sanity checks on data generation
-        # ICC of population effects within clusters
-        ICCpop = d$icc[1],
-        # number of clusters (could be <m for reasons described in helper code)
-        nClusters = length(unique(d$cluster)),
-        VzetaEmp = var( d$zeta1[ !duplicated(d$cluster) ] ),
+        # back to the main bootstrap results
+        boot.res
         
         # boot diagnostics
-        btNClusters = btNClusters,
-        btRows = btRows,
+        bt.pfails =  as.numeric( colMeans( is.na(boot.res$t) ) )  # proportion of boot reps that failed (NAs)
+        bt.means = as.numeric( colMeans(boot.res$t, na.rm = TRUE) )
         
-        # for "star" level of moderators
-        Phat = d.stats$Phat,
-        PhatLo = PhatBootCIs[1],
-        PhatHi = PhatBootCIs[2],
-        PhatBtMn = bt.means[1],
-        PhatBtSD = bt.sds[1],
-        PhatBtFail = bt.pfails[1],
+        # over all sim reps, the mean of these bt.sds should (but doesn't) agree with
+        #  the empirical SD of Phat over all sim reps (latter is truth)
+        # 
+        # by analogy, over all INNER boot reps, the mean of the bbt.sds should agree with bt.sds,
+        #  i.e., the empirical SD of the outer bootstraps for one sim rep
+        bt.sds = apply( boot.res$t, 2, function(x) sd(x, na.rm = TRUE) )
+        
+        # @NEW
+        # bbt.sds.mat will have only 1 row matrix( c(NA, NA), nrow=1, ncol=2)
+        #  if we didn't do the inner boot rep
+        if ( nrow(bbt.sds.mat) > 1 ) {
+          # from initialization
+          bbt.sds.mat = bbt.sds.mat[ !is.na(bbt.sds.mat[,1]), ]
+          
+          # estimated bias in bootstrap SDs
+          BtSDBiasEst <<- colMeans(bbt.sds.mat) - c(bt.sds[1], bt.sds[3])
+        } else {
+          BtSDBiasEst <<- NA
+        }
+        
+        # get CIs for each estimand individually in case some work and others don't
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 1)
+          # put in nice vector format
+          PhatBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          PhatBootCIs <<- c(NA, NA)
+        } )
+        
+        
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 2)
+          PhatRefBootCIs = c( CI[[4]][4], CI[[4]][5] )
+          PhatRefBootSD = sd( boot.res$t[,2] )
+        }, error = function(err){
+          PhatRefBootCIs <<- c(NA, NA)
+        } )
+        
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 3)
+          DiffBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          DiffBootCIs <<- c(NA, NA)
+        } )
+        
+        tryCatch({
+          CI = boot.ci(boot.res, type = "bca", index = 5)
+          truncLogitBootCIs = c( CI[[4]][4], CI[[4]][5] )
+        }, error = function(err){
+          truncLogitBootCIs <<- c(NA, NA)
+        } )
+        
+        # this part happens only if bootstrapping fails completely
+        # not just CIs
+      }, error = function(err){
+        # one list item for each stat of interest (3),
+        #  and one sub-entry for lower/upper CI limit
+        n.ests = 5  # needs to match what's returned in boot.res
+        PhatBootCIs <<- c(NA, NA)
+        PhatRefBootCIs <<- c(NA, NA)
+        DiffBootCIs <<- c(NA, NA)
+        truncLogitBootCIs <<- c(NA, NA)
+        bt.means <<- rep(NA, n.ests)
+        bt.sds <<- rep(NA, n.ests)
+        bt.pfails <<- rep(NA, n.ests)
+        BtSDBiasEst <<- rep(NA, 2)
+        Note <<- paste("Resampling failed completely: ", err$message, sep="")
+        #browser()
+      } )  # end of the big tryCatch loop for the whole boot() call
+      
+    }  # end part for both bootstrap methods
     
-        
-        LogitPhatBtMn = bt.means[5],
-        truncLogitLo = truncLogitBootCIs[1],
-        truncLogitHi = truncLogitBootCIs[2],
-        
-        # for reference level of moderators
-        PhatRef = d.stats$Phat.ref, 
-        PhatRefLo = PhatRefBootCIs[1],
-        PhatRefHi = PhatRefBootCIs[2],
-        PhatRefBtMn = bt.means[2],
-        PhatRefBtSD = bt.sds[2],
-        PhatRefBtFail = bt.pfails[2],
-        
-        # for the difference
-        Diff = PhatDiff,
-        DiffLo = DiffBootCIs[1],
-        DiffHi = DiffBootCIs[2],
-        DiffBtMn = bt.means[3],
-        DiffBtSD = bt.sds[3],
-        DiffBtFail = bt.pfails[3],
-        
-        # method of calculating CI
-        Method = p$method,
-        
-        # CI performance
-        CoverPhat = covers(p$TheoryP, PhatBootCIs[1], PhatBootCIs[2]),
-        CoverPhatRef = covers(p$TheoryP.ref, PhatRefBootCIs[1], PhatRefBootCIs[2]),
-        CoverDiff = covers(p$TheoryDiff, DiffBootCIs[1], DiffBootCIs[2]),
-        
-        PhatCIWidth = PhatBootCIs[2] - PhatBootCIs[1],
-        PhatRefCIWidth = PhatRefBootCIs[2] - PhatRefBootCIs[1],
-        DiffCIWidth = DiffBootCIs[2] - DiffBootCIs[1],
-        
-        Note = Note)
-      
-      
-      ##### Write Results #####
-      
-      # add in scenario parameters
-      rows$scen.name = scen
-      rows = as.data.frame( merge(rows, scen.params,
-                                  by = "scen.name") )
-      rows
-      
-    }  ### end foreach loop
+    ##### No CI (for faster experimentation) #####
+    if ( p$method == "no.ci" ) {
+      n.ests = 5
+      Note = NA
+      PhatBootCIs = c(NA, NA)
+      PhatRefBootCIs = c(NA, NA)
+      DiffBootCIs = c(NA, NA)
+      truncLogitBootCIs <<- c(NA, NA)
+      bt.means = rep(NA, n.ests)
+      bt.sds = rep(NA, n.ests)
+      bt.pfails = rep(NA, n.ests)
+      btRows = NA
+      btNClusters = NA
+      BtSDBiasEst = c(NA, NA)
+    }
     
-  } )[3]  # end timer
+    # order of things in bt.means, etc.
+    # as.numeric(b.stats["Phat"]),
+    # as.numeric(b.stats["Phat.ref"]),
+    # as.numeric(b.stats["Phat.diff"]),
+    # as.numeric(b.stats["t2"]),
+    # truncLogit( as.numeric(b.stats["Phat"]) )
+    
+    ##### Write Results #####
+    rows = data.frame( 
+      TrueMean = TrueMean,
+      # estimated mean at level "star" of effect modifiers
+      # will be the bias-corrected one if specified via method argument
+      EstMean = EstMean, 
+      
+      TrueVar = p$V,
+      EstVar = d.stats$t2,  # will be the bias-corrected one if specified via method argument
+      EstVarBtMn = bt.means[4],
+      
+      # sanity checks on data generation
+      # ICC of population effects within clusters
+      ICCpop = d$icc[1],
+      # number of clusters (could be <m for reasons described in helper code)
+      nClusters = length(unique(d$cluster)),
+      VzetaEmp = var( d$zeta1[ !duplicated(d$cluster) ] ),
+      
+      # boot diagnostics
+      btNClusters = btNClusters,
+      btRows = btRows,
+      
+      # for "star" level of moderators
+      Phat = d.stats$Phat,
+      PhatLo = PhatBootCIs[1],
+      PhatHi = PhatBootCIs[2],
+      PhatBtMn = bt.means[1],
+      PhatBtSD = bt.sds[1],
+      PhatBtFail = bt.pfails[1],
+      PhatBtSDBiasEst = BtSDBiasEst[1],
+      
+      
+      LogitPhatBtMn = bt.means[5],
+      truncLogitLo = truncLogitBootCIs[1],
+      truncLogitHi = truncLogitBootCIs[2],
+      
+      # for reference level of moderators
+      PhatRef = d.stats$Phat.ref, 
+      PhatRefLo = PhatRefBootCIs[1],
+      PhatRefHi = PhatRefBootCIs[2],
+      PhatRefBtMn = bt.means[2],
+      PhatRefBtSD = bt.sds[2],
+      PhatRefBtFail = bt.pfails[2],
+      
+      # for the difference
+      Diff = PhatDiff,
+      DiffLo = DiffBootCIs[1],
+      DiffHi = DiffBootCIs[2],
+      DiffBtMn = bt.means[3],
+      DiffBtSD = bt.sds[3],
+      DiffBtFail = bt.pfails[3],
+      DiffBtSDBiasEst = BtSDBiasEst[2],
+      
+      # method of calculating CI
+      Method = p$method,
+      
+      # CI performance
+      CoverPhat = covers(p$TheoryP, PhatBootCIs[1], PhatBootCIs[2]),
+      CoverPhatRef = covers(p$TheoryP.ref, PhatRefBootCIs[1], PhatRefBootCIs[2]),
+      CoverDiff = covers(p$TheoryDiff, DiffBootCIs[1], DiffBootCIs[2]),
+      
+      PhatCIWidth = PhatBootCIs[2] - PhatBootCIs[1],
+      PhatRefCIWidth = PhatRefBootCIs[2] - PhatRefBootCIs[1],
+      DiffCIWidth = DiffBootCIs[2] - DiffBootCIs[1],
+      
+      Note = Note)
+    
+    
+    ##### Write Results #####
+    
+    # add in scenario parameters
+    rows$scen.name = scen
+    rows = as.data.frame( merge(rows, scen.params,
+                                by = "scen.name") )
+    rows
+    
+  }  ### end foreach loop
+  
+} )[3]  # end timer
 
 
 rs$repTime = rep.time
-  
+
 # # for local use
 #   if ( scen == scen.params$scen.name[1] ) rs2 = rs
 #   else rs2 = rbind(rs2, rs)
