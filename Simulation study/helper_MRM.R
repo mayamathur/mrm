@@ -166,7 +166,6 @@ make_agg_data = function( .s3 ){
                  "TheoryP")
   
   
-  
   # # sanity check for one scenario
   # # mean varies across iterates, as expected
   # summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "DL"])
@@ -299,7 +298,8 @@ namesWith = function(pattern, dat){
 # selectVars: "Phat", "Diff" (by default looks for a global variable by this name)
 my_summarise = function(dat,
                         description = NA,
-                        .selectVars = selectVars){
+                        .selectVars = selectVars,
+                        badCoverageCutoff = 0.85){
   
   # variables whose mean should be taken
   meanVars = c( namesWith(pattern = "Bias", dat = dat), 
@@ -317,8 +317,8 @@ my_summarise = function(dat,
   
   
   # proportion of SCENARIOS with bad MEAN coverage
-  tab = tab %>% add_column(BadPhatCover = mean(dat$CoverPhat < 0.85),
-                           BadDiffCover = mean(dat$CoverDiff < 0.85))
+  tab = tab %>% add_column(BadPhatCover = mean(dat$CoverPhat < badCoverageCutoff),
+                           BadDiffCover = mean(dat$CoverDiff < badCoverageCutoff))
   if (selectVars == "Phat") tab = tab %>% select(-BadDiffCover)
   if (selectVars == "Diff") tab = tab %>% select(-BadPhatCover)
   

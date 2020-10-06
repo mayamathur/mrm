@@ -313,7 +313,6 @@ robu( logRR ~ fake,
 #dm$logRR[ dm$qual.y.prox == "a.Actual" ] = c(0.10920, -.33)
 dm$logRR[ dm$qual.y.prox == "b.Self-reported" ]
 
-# bm:*** as an analogy, are there measures of influence in OLS on the *variance* of a particular coefficient?
 
 # ellipsis args are passed to add_row, so are portions of the new row
 add_new_study = function(.covars, ...){

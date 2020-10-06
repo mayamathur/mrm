@@ -41,7 +41,7 @@ if (run.local == FALSE) {
   # for largest scenario (k=150) with method MR and boot.reps=50 and sim.reps=100, one sbatch took 15 min
   #  so boot.reps=1,000 should be about 5 hrs
   # reducing sim.reps to 50 should be about 2.5 hrs
-  boot.reps = 10000
+  boot.reps = 1000
   
   
   # EDITED FOR C++ ISSUE WITH PACKAGE INSTALLATION
@@ -150,96 +150,100 @@ if ( run.local == TRUE ) {
   
   
   # debug cluster error
-  ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
-                                    calib.method = c("MR"),
-                                    #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
-                                    k = c(50),
-                                    m = c(50), # @NEW,
-                                    #m = 100,
-
-                                    b0 = 0, # intercept
-                                    bc = 0, # effect of continuous moderator
-                                    bb = 0, # effect of binary moderator
-
-                                    zc.star = 0.5,  # level of moderator to consider
-                                    zb.star = 1,
-
-                                    zc.ref = 2,  # comparison levels of moderator to consider
-                                    zb.ref = 0,
-
-                                    V = c( .2 ), # residual variance
-                                    #Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
-                                    Vzeta = 0,
-
-                                    muN = NA,  # just a placeholder; to be filled in later
-                                    minN = c(50),
-                                    sd.w = c(1),
-                                    tail = "above",
-                                    true.effect.dist = c("normal"),
-                                    TheoryP = c(0.2),
-                                    start.at = 1 ) )
+  # k == 50 & V == 0.04 & minN == 50 & true.effect.dist == "expo" & TheoryP == 0.1
   
-  
-  # # full set of scenarios
-  # # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
-  # ( scen.params = make_scen_params( method = "bt.smart",
-  #                                   calib.method = c("MR", "DL"),
-  #                                   
-  #                                   k = rev(c(10, 20, 50, 100, 150)),
-  #                                   m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
-  #                                   b0 = 0, # intercept
+  # ( scen.params = make_scen_params( method = c("bt.smart"),  # "bt.smart" or "no.ci"
+  #                                   calib.method = c("MR"),
+  #                                   #calib.method = "MR bt mn correct",  # "MR" for one-stage, "DL" for two-stage, "MR bt mn correct", "MR bt var correct", "MR bt both correct"
+  #                                   k = c(50),
+  #                                   m = c(50), # @NEW,
+  #                                   #m = 100,
+  # 
+  #                                   b0 = 0.4, # intercept
   #                                   bc = 0.5, # effect of continuous moderator
   #                                   bb = 1, # effect of binary moderator
-  #                                   
-  #                                   zc.star = 0.5,  # "active" level of moderator to consider
+  # 
+  #                                   zc.star = 0.5,  # level of moderator to consider
   #                                   zb.star = 1,
-  #                                   
-  #                                   zc.ref = 2,  # reference levels of moderator to consider
+  # 
+  #                                   zc.ref = 2,  # comparison levels of moderator to consider
   #                                   zb.ref = 0,
-  #                                   
-  #                                   # Previous choices:
-  #                                   # zc.star = 0.5,  # "active" level of moderator to consider
-  #                                   # zb.star = 1,
-  #                                   #
-  #                                   # zc.ref = 2,  # reference levels of moderator to consider
-  #                                   # zb.ref = 0,
-  #                                   
-  #                                   V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
-  #                                   Vzeta = NA, # to be filled in
+  # 
+  #                                   V = c( .04 ), # residual variance
+  #                                   #Vzeta = .2 * 0.8, # between-cluster variance (@NEW)
+  #                                   Vzeta = 0,
+  # 
   #                                   muN = NA,  # just a placeholder; to be filled in later
-  #                                   minN = c(50, 800),
+  #                                   minN = c(50),
   #                                   sd.w = c(1),
   #                                   tail = "above",
-  #                                   true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
-  #                                   TheoryP = c(0.05, 0.1, 0.2, 0.5),
+  #                                   true.effect.dist = c("expo"),
+  #                                   TheoryP = c(0.1),
   #                                   start.at = 1 ) )
-  # 
-  # # define clustering scenarios
-  # # m = -99 will be no clustering
-  # # m = 99 will be clustering
-  # scen.params$clustered = (scen.params$m == 99)
-  # scen.params$Vzeta[ scen.params$m == -99 ] = 0
-  # scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
-  # scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
-  # scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
-  # 
-  # # sanity check
-  # scen.params %>% group_by(clustered) %>%
-  #   summarise( mean(m/k),
-  #              mean(Vzeta/V) )
-  # 
-  # # just to see it
-  # data.frame(scen.params)
-  # 
-  # n.scen = nrow(scen.params)
-  # 
-  # #as.data.frame(scen.params)
   
   
-  # sim.reps = 500  # reps to run in this iterate; leave this alone!
-  # boot.reps = 1000
-  sim.reps = 500
-  boot.reps = 1000  # ~~ temp only
+  # full set of scenarios
+  # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
+  ( scen.params = make_scen_params( method = "bt.smart",
+                                    calib.method = c("MR", "DL"),
+
+                                    k = rev(c(10, 20, 50, 100, 150)),
+                                    m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
+                                    b0 = 0, # intercept
+                                    bc = 0.5, # effect of continuous moderator
+                                    bb = 1, # effect of binary moderator
+
+                                    # "active" level of moderators to consider
+                                    #zc.star = 0.5,  
+                                    zc.star = 0,  # the mean
+                                    zb.star = 1,
+                                    
+                                    # reference levels of moderator to consider
+                                    #zc.ref = 2,  # 95th quantile
+                                    zc.ref = 0,
+                                    zb.ref = 0,
+
+                                    # Previous choices:
+                                    # zc.star = 0.5,  # "active" level of moderator to consider
+                                    # zb.star = 1,
+                                    #
+                                    # zc.ref = 2,  # reference levels of moderator to consider
+                                    # zb.ref = 0,
+
+                                    V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
+                                    Vzeta = NA, # to be filled in
+                                    muN = NA,  # just a placeholder; to be filled in later
+                                    minN = c(50, 800),
+                                    sd.w = c(1),
+                                    tail = "above",
+                                    true.effect.dist = c("normal", "expo"), # # "expo", "normal", "unif2", "t.scaled"
+                                    TheoryP = c(0.05, 0.1, 0.2, 0.5),
+                                    start.at = 1 ) )
+
+  # define clustering scenarios
+  # m = -99 will be no clustering
+  # m = 99 will be clustering
+  scen.params$clustered = (scen.params$m == 99)
+  scen.params$Vzeta[ scen.params$m == -99 ] = 0
+  scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
+  scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
+  scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
+
+  # sanity check
+  scen.params %>% group_by(clustered) %>%
+    summarise( mean(m/k),
+               mean(Vzeta/V) )
+
+  # just to see it
+  data.frame(scen.params)
+
+  n.scen = nrow(scen.params)
+
+  #as.data.frame(scen.params)
+  
+  
+  sim.reps = 500  # reps to run in this iterate; leave this alone!
+  boot.reps = 1000
   
   
   library(foreach)
@@ -341,9 +345,9 @@ if ( run.local == TRUE ) {
           dNest = d %>% group_nest(cluster)
           
           # this is just the resampling part, not the CI estimation
-          boot.res = my_boot( data = dNest, 
+          boot.res = my_boot( data = dNest,
                               parallel = "multicore",
-                              R = boot.reps, 
+                              R = boot.reps,
                               statistic = function(original, indices) {
 
                                 # bt.smart: allows for either independent or clustered observations
@@ -352,29 +356,22 @@ if ( run.local == TRUE ) {
                                   bNest = original[indices,]
                                   b = bNest %>% unnest(data)
                                 }
-                                
+
                                 tryCatch({
-                                  
+
                                   # simple sanity checks on resampling
                                   btRows = nrow(b)
                                   btNClusters = length(unique(b$cluster))
-                                  
+
                                   b.stats = prop_stronger_mr(dat = b,
                                                              zc.star = p$zc.star,
                                                              zb.star = p$zb.star,
                                                              zc.ref = p$zc.ref,
                                                              zb.ref = p$zb.ref,
                                                              calib.method = p$calib.method )
-                                  
-                                  # bm
-                                  # @DOUBLE-BOOTSTRAPPING:
-                                  # in here, would generate resamples from b.stats, calculate their SDs, 
-                                  #  and record their bias relative to empirical SD of bootstraps from 
-                                  #  all boot reps?
-                                  #  
-                                  
-                                  
-                                  
+
+
+
                                   # return the stats of interest
                                   # order of stats has to match indices in CI tryCatch loops below
                                   # and in returned results because of bt.means and bt.sds
@@ -385,10 +382,10 @@ if ( run.local == TRUE ) {
                                      truncLogit( as.numeric(b.stats["Phat"]) ) # transformed Phat
                                   )
                                 }, error = function(err){
-                        
+
                                   return( rep(NA, 5) )
                                 })
-                                
+
                               } )
           boot.res
           
@@ -551,6 +548,12 @@ if ( run.local == TRUE ) {
 
 
 rs$repTime = rep.time
+
+# took 33 min with sim.reps = 200, boot.reps = 1000
+# with new method bt.smart
+mean(rs$CoverDiff, na.rm=TRUE)  # 93? huh?
+mean( rs$DiffCIWidth, na.rm=TRUE)  # 0.2436544
+mean( abs(rs$Diff - rs$TheoryDiff), na.rm=TRUE)  # 0.0474834
   
 # # for local use
 #   if ( scen == scen.params$scen.name[1] ) rs2 = rs

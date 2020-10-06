@@ -1,5 +1,44 @@
 
 
+### Quick look at sim results without using continuous covariate:
+
+setwd("~/Desktop")
+sNew = fread("stitched.csv", fill=TRUE)
+nrow(sNew) / (1600*500)
+sNew$group = "new"
+
+mean(sNew$CoverPhat, na.rm=TRUE)  # 93.9%
+mean(sNew$CoverDiff, na.rm=TRUE)  # 91%! whoa
+
+s3New = make_s3_data(sNew)
+aggNew = make_agg_data(s3New)
+selectVars = "all"
+data.frame(my_summarise(aggNew, ""))
+data.frame(my_summarise(aggNew, "", badCoverageCutoff = 0.9))
+
+# **not clustered makes diff coverage go to 95%!!!
+aggNew2 = aggNew %>% filter( !(clustered == TRUE))
+data.frame(my_summarise(aggNew2, ""))
+# this has approximately the same effect
+aggNew3 = aggNew %>% filter(true.effect.dist == "normal")
+data.frame(my_summarise(aggNew3, ""))
+# **exclude only scenarios with clustered exponential
+aggNew4 = aggNew %>% filter( !(true.effect.dist == "expo" & clustered ==TRUE) )
+data.frame(my_summarise(aggNew4, ""))
+data.frame(my_summarise(aggNew4, "", badCoverageCutoff = 0.9))
+
+
+
+# compare: 
+mean(s$CoverPhat, na.rm=TRUE)  # 92.9%
+mean(s$CoverDiff, na.rm=TRUE)  # 78.5%
+s$group = "old"
+
+# compare to same scens in old data
+temp = s %>% filter(scen.name %in% sNew$scen.name)
+mean(temp$CoverPhat, na.rm=TRUE)  # 93%
+mean(temp$CoverDiff, na.rm=TRUE)  # 81%
+
 ################################## PRELIMINARIES ##################################
 
 rm(list=ls())
@@ -37,10 +76,10 @@ agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 
 # cut to avoid low-bca-success ones
 s = s %>% filter( calib.method.pretty %in% to.analyze & 
-                    scen.name %in% agg$scen.name )
+                    scen.name %in% s$scen.name )
 
 # # restrict s to the analyzed scenarios in agg
-# s = s %>% filter( unique.scen %in% agg$unique.scen )
+# s = s %>% filter( unique.scen %in% s$unique.scen )
 
 
 summary(s$repTime)/60
@@ -52,8 +91,8 @@ summary(s$repTime)/60
 
 # for each possible sample size in our sims, convert all the heterogeneity 
 #  parameters to I^2
-table(agg$muN)
-table(agg$V)
+table(s$muN)
+table(s$V)
 
 round( I2( t2 = c(0.0025, .01, .04, .25, .64),
            N = 100), 2 )
@@ -156,7 +195,8 @@ data.frame( my_summarise(dat = make_agg_data( s %>% filter(Phat>0.10 & PhatRef >
 
 ################################## TEST RULES OF THUMB ##################################
 
-# bm
+
+
 # overall
 selectVars = "all"
 data.frame( my_summarise(dat = agg,
@@ -172,7 +212,6 @@ temp = agg %>% filter( bca.success>0.05 &
 data.frame( my_summarise(dat = temp,
                          description = "Reproduce previous") )
 
-# bm
 
 # look at filtering rules
 data.frame( my_summarise(dat = agg %>% filter(bca.success>0.1),
@@ -222,6 +261,21 @@ agg7 = make_agg_data(s %>% filter( k >= 100 &
 agg9 = make_agg_data(s %>% filter( k >= 100 &
                                      true.effect.dist == "normal" ) ) 
 
+agg10 = make_agg_data(s %>% filter( k >= 100 &
+                                      muN==850 &
+                                      true.effect.dist == "normal" &
+                                      clustered == FALSE) ) 
+
+summary(s$EstMeanRelBias)
+summary(s$EstVarRelBias)
+
+# this one filtered at scen level
+agg11 = agg %>% filter(EstMeanRelBias < 0.02 &
+  k>=100 &
+                         EstVarRelBias<.2)
+
+data.frame( my_summarise(agg11, description=""))
+
 selectVars = "Diff"
 t = rbind( my_summarise(dat = agg,
                         description = "All reps"),
@@ -235,16 +289,122 @@ t = rbind( my_summarise(dat = agg,
            my_summarise(agg6,
                         description = "k>=100"),
            
+           my_summarise(agg11,
+                        description = "k>=100/std. ests good"),
+           
            my_summarise( agg7,
                          description = "k>=100/not clustered expo"),
            
            my_summarise( agg9,
-                         description = "k>=100/normal")
+                         description = "k>=100/normal"),
+           
+           my_summarise( agg10,
+                         description = "k>=100/muN")
 )  
 
 View(t)
 
+# really can't get mean coverage above 89% :(
 
+
+##### Other boot diagnostics - skewness (doesn't work)
+
+s$DiffLo[1:100]
+s$DiffHi[1:100]
+
+# # truncate bounds
+# s$DiffLoTrunc = pmax(s$DiffLo, 0)
+# table(s$DiffLoTrunc == s$DiffLo)  # original bound very often below 0
+# 
+# s$DiffHiTrunc = pmin(s$DiffHi, 1)
+# table(s$DiffHiTrunc == s$DiffHi)  # never had to be truncated
+
+summary(s$DiffHi - s$DiffBtMn)  # sometimes negative, which is a bad sign
+summary(s$DiffBtMn - s$DiffLo)  # sometimes negative, which is a bad sign
+
+s$skew = abs(s$DiffHi - s$DiffBtMn) / abs(s$DiffLo - s$DiffBtMn)
+
+summary(s$skew)
+
+s %>% filter( !is.na(skew) & skew > 50 ) %>%
+  select(DiffLo, DiffBtMn, TheoryDiff, DiffHi, skew) %>%
+  slice_head(n=20)
+
+
+summary(s$DiffHiTrunc - s$DiffBtMn)
+
+s$evil = (s$skew > 2) | (s$DiffHi - s$DiffBtMn < 0) | (s$DiffBtMn - s$DiffLo < 0)
+s$evil = (s$skew > 2)
+s$evil = (s$DiffHi - s$DiffBtMn < 0) | (s$DiffBtMn - s$DiffLo < 0)
+
+table(s$evil)
+
+agg11 = make_agg_data( s %>% filter(evil == FALSE & k >= 100) )
+
+#agg11 = make_agg_data( s %>% filter(k >= 100) )
+
+data.frame( my_summarise(agg11, description=""))
+
+
+
+
+
+##### Other boot diagnostics - Phat2 as a diagnostic rather than a bias corrections
+
+summary( abs(s$Phat2/s$Phat) )
+
+s %>% filter(Phat2/Phat < 1.05) %>%
+  select(Phat, Phat2, PhatBtMn, TheoryP) %>%
+  slice_head(20)
+
+agg11 = make_agg_data( s %>% filter( abs(Phat2/Phat) > 0.98 & abs(Phat2/Phat) < 1.02 ) )
+
+#agg11 = make_agg_data( s %>% filter(k >= 100) )
+
+selectVars = "Phat"
+data.frame( my_summarise(agg11, description=""))
+
+sdata.frame( my_summarise(agg, description=""))
+
+
+
+##### Other filtering criteria - scenarios with okay bias in meta-regression estimators
+# this one filtered at scen levels
+
+agg11 = agg %>% filter(EstMeanRelBias < 0.02 &
+                         k>=100 &
+                         EstVarRelBias<.2)
+
+data.frame( my_summarise(agg11, description=""))
+
+
+
+##### look for the scenarios where it is okay
+mean(s$CoverDiff>.93)  # only 12%
+
+# bm
+obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail",
+            "true.effect.dist", "clustered")
+
+
+obsVars = c("k", "muN",
+            #"PhatBtFail", "bca.success",
+            "true.effect.dist", "clustered")
+
+# bm
+# best subsets
+# ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
+library(rFSA)
+string = paste( "CoverDiff>.93 ~ 1" )
+keepers = c(obsVars, "CoverDiff")
+mod2 = FSA( formula = eval( parse(text = string) ),
+            #data = s[1:1000,] %>% select(keepers),  # for testing
+            data = agg %>% select(keepers),
+            cores = 8,
+            m = 2,  # order of interactions to try
+            interactions = FALSE,
+            criterion = AIC)
+summary(mod2)[[2]]
 
 ################################## COMPARE TO RSM_0 SIMS ##################################
 
@@ -257,24 +417,35 @@ View(t)
 setwd(prepped.data.dir)
 
 # stitched raw
-sr = fread("stitched_main_sims.csv") %>% filter(calib.method == "MR")
+sr = fread("stitched_main_sims.csv") %>% filter(calib.method == "MR") %>%
+  filter(clustered == FALSE & 
+           V > 0.0025 & 
+           V < 0.64 &
+           EstVar > 0)
 # just take means without aggregating by scenario
 # no filtering
-sr %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) ),
-                  DiffAbsBias = mean( abs(Diff-TheoryDiff) ),
-                  CoverPhat = mean(CoverPhat, na.rm = TRUE),
-                  CoverDiff = mean(CoverDiff, na.rm = TRUE),
-                  DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
-                  miss = mean(is.na(CoverDiff)))
+( resNew = sr %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) ),
+                           DiffAbsBias = mean( abs(Diff-TheoryDiff) ),
+                           .CoverPhat = mean(CoverPhat, na.rm = TRUE),
+                           .CoverDiff = mean(CoverDiff, na.rm = TRUE),
+                           .DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
+                           
+                           EstMeanAbsBias = mean(abs(EstMean - TrueMean)),
+                           EstVarAbsBias = mean(abs(EstVar - V)),
+                           miss = mean(is.na(CoverDiff))) )
 
 selectVars = "all"
-data.frame( my_summarise(dat = agg,
+data.frame( my_summarise(dat = agg %>% filter(calib.method == "MR" & 
+                                                clustered == FALSE & 
+                                                V > 0.0025 & 
+                                                V < 0.64 &
+                                                EstVar > 0),
                          description = "Old (all)") )
 # ^ these two agree
 
 
 # filter in same way as old sims
-table(agg$calib.method)
+table(s$calib.method)
 nrow(agg)
 temp = agg %>% filter( #bca.success>0.05 &
   clustered == FALSE & 
@@ -295,14 +466,22 @@ setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metr
 sro = fread("s3_dataset_MRM.csv") %>% filter(calib.method == "MR")
 aggo = fread("agg_dataset_with_bca_failures_MRM.csv") %>% filter(calib.method == "MR")
 
-sro %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) / TheoryP ),
+( resOld = sro %>% summarise( PhatAbsBias = mean( abs(Phat-TheoryP) / TheoryP ),
                    DiffAbsBias = mean( abs(Phat-TheoryP) / TheoryP ),
-                   CoverPhat = mean(CoverPhat, na.rm = TRUE),
-                   CoverDiff = mean(CoverDiff, na.rm = TRUE),
-                   DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
-                   miss = mean(is.na(CoverDiff)))
+                   .CoverPhat = mean(CoverPhat, na.rm = TRUE),
+                   .CoverDiff = mean(CoverDiff, na.rm = TRUE),
+                   .DiffCIWidth = mean(DiffCIWidth, na.rm = TRUE),
+                   
+                   EstMeanAbsBias = mean(abs(EstMean - TrueMean)),
+                   EstVarAbsBias = mean(abs(EstVar - V)),
+                   miss = mean(is.na(CoverDiff))) )
+
+round( rbind(resOld, resNew), 3 )
+# way more failed bootstrapping in previous sims
 # **strangely, diff CI was actually SMALLER in old sims AND slightly more abs bias
 #  yet better coverage
+
+# **also, EstMean and EstVar were less biased previously, so it's not just the bootstrapping
 
 # with BCA failures
 aggo %>% summarise( PhatAbsBias = mean(PhatAbsBias),
@@ -320,9 +499,6 @@ nrow(aggo); nrow(temp)
 
 
 ##### Compare Scenario-by-Scenario #####
-
-
-# bm1
 
 param.vars = c(
   "k",
@@ -366,6 +542,57 @@ ggplot( data = aggm,
   theme_classic() +
   scale_x_continuous( limits = c(0,1) ) +
   scale_y_continuous( limits = c(0,1) ) 
+
+
+##### Look at One Scenario #####
+
+# find one with big change in coverage
+aggm = aggm %>% mutate(CoverChg = CoverDiff.y - CoverDiff.x) %>% 
+  arrange( CoverChg )
+summary(aggm$CoverChg)
+
+aggm = as.data.frame(aggm)
+View(aggm[1:10,] %>% select(c("k","V", "minN", "true.effect.dist", "TheoryP")))
+
+
+# arbitrarily choose one
+temp = aggm %>% filter(k == 20 & V == 0.01 & minN == 50 & true.effect.dist == "normal" & TheoryP == 0.05)
+
+temp$TheoryDiff.x
+temp$TheoryDiff.y
+temp$Diff.x
+temp$Diff.y  # almost exactly the same
+
+temp$DiffAbsBias.x
+temp$DiffAbsBias.y  # almost exactly the same
+
+temp$CoverDiff.x
+temp$CoverDiff.y  # 96.7% vs. 90.1%
+
+temp$DiffCIWidth.x  # why greater than 1??? because of the BCA
+temp$DiffCIWidth.y  # **dramatically narrower CI now
+
+temp$scen.name.x
+
+
+View( sro %>% filter(scen.name == temp$scen.name.x) )
+View( sr %>% filter(scen.name == temp$scen.name.y) )
+
+sro %>% filter(scen.name == temp$scen.name.x) %>%
+  summarise(mean(is.na(DiffLo)))
+
+sr %>% filter(scen.name == temp$scen.name.y) %>%
+  summarise(mean(is.na(DiffLo)))
+
+
+# THE FIRST LINE BELOW SEEMS FUCKED UP:  
+summary(sro$CoverDiff)  # this is definitely messed up! (the old ones). Should only ever be 0 or 1.
+summary(sr$CoverDiff)
+
+# **ALSO WAYYYY FEWER FAILED BOOT ITERATES IN THE CURRENT VERSION
+mean( is.na(sro$CoverDiff) )
+mean( is.na(sr$CoverDiff) )
+
 
 
 
@@ -426,9 +653,9 @@ t
 # 
 # #@temp: look at relationship between relative bias in variance and in Phat estimation
 # # @interesting and maybe convincing
-# plot(agg$EstVarRelBias, agg$PhatRelBias)
-# xmax = max( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
-# xmin = min( c(agg$EstVarRelBias, agg$PhatRelBias ), na.rm = TRUE )
+# plot(s$EstVarRelBias, s$PhatRelBias)
+# xmax = max( c(s$EstVarRelBias, s$PhatRelBias ), na.rm = TRUE )
+# xmin = min( c(s$EstVarRelBias, s$PhatRelBias ), na.rm = TRUE )
 # 
 # library(ggplot2)
 # ggplot( data = agg,
@@ -442,7 +669,7 @@ t
 #   theme_classic()
 # 
 # # **report this?
-# summary( lm(agg$EstVarRelBias ~ agg$PhatRelBias) )
+# summary( lm(s$EstVarRelBias ~ s$PhatRelBias) )
 # 
 # 
 # ##### Summary Table #####
@@ -514,8 +741,8 @@ t
 # 
 # my_summarise( agg %>% filter( m>50 & k>50 & EstVar>0.05) )
 # 
-# mean(agg$CoverPhat[agg$clustered == TRUE]<.85)
-# mean(agg$CoverPhat[agg$clustered == FALSE]<.85)
+# mean(s$CoverPhat[s$clustered == TRUE]<.85)
+# mean(s$CoverPhat[s$clustered == FALSE]<.85)
 # ### end searhcinfg
 # 
 # 
