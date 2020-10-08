@@ -68,7 +68,8 @@ make_s3_data = function(.s){
 # fn for aggregating so we can look at different
 #  iterate-level filtering rules
 # .s: the iterate-level stitched data
-make_agg_data = function( .s3 ){
+make_agg_data = function( .s3,
+                          .averagefn = "mean"){
   
   ##### Outcome and Parameter Variables #####
   # "outcome" variables used in analysis
@@ -222,13 +223,15 @@ make_agg_data = function( .s3 ){
   expect_equal( TRUE,
                 all( names(s4) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
   
+  if (.averagefn == "mean") avgfun = function(x) meanNA(x)
+  if (.averagefn == "median") avgfun = function(x) medNA(x)
   
   s4 = s4 %>%
     
     # take means of numeric variables
     group_by_at(param.vars) %>%
     mutate_at( takeMean,
-               function(x) mean(x, na.rm = TRUE) ) %>%
+               function(x) avgfun(x) ) %>%
     
     select( -all_of(toDrop) )
   
@@ -261,6 +264,17 @@ make_agg_data = function( .s3 ){
 
 
 ############################# SMALL MISC FNS #############################
+
+# quick mean with NAs removed
+meanNA = function(x){
+  mean(x, na.rm = TRUE)
+}
+
+# quick median with NAs removed
+medNA = function(x){
+  median(x, na.rm = TRUE)
+}
+
 
 # take the logit of a probability, but truncate
 #  to avoid infinities
@@ -299,9 +313,11 @@ namesWith = function(pattern, dat){
 my_summarise = function(dat,
                         description = NA,
                         .selectVars = selectVars,
-                        badCoverageCutoff = 0.85){
+                        badCoverageCutoff = 0.85,
+                        averagefn = "mean"
+                        ){
   
-  # variables whose mean should be taken
+  # variables whose average should be taken
   meanVars = c( namesWith(pattern = "Bias", dat = dat), 
                 namesWith(pattern = "Cover", dat = dat) )
   
@@ -310,10 +326,13 @@ my_summarise = function(dat,
   if (.selectVars == "Diff") meanVars = meanVars[ !grepl(pattern = "Phat", x = meanVars) ]
   
   
+  if (averagefn == "mean") avgfun = function(x) meanNA(x)
+  if (averagefn == "median") avgfun = function(x) medNA(x)
+  
   # make a one-row summary
   tab = dat %>% 
     summarise_at( .vars = meanVars, 
-                  function(x) mean(x, na.rm = TRUE) )
+                  function(x) avgfun(x) )
   
   
   # proportion of SCENARIOS with bad MEAN coverage

@@ -68,7 +68,8 @@ source("helper_MRM.R")
 
 # CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
 #to.analyze = "Two-stage"
-to.analyze = "One-stage"
+#to.analyze = "One-stage"
+to.analyze = c("One-stage", "Two-stage")
 
 agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
 # @test: more stringent bca.success criterion
@@ -84,8 +85,8 @@ s = s %>% filter( calib.method.pretty %in% to.analyze &
 
 summary(s$repTime)/60
 
-################################## I^2 AND ICC TO REPORT ##################################
 
+################################## I^2 AND ICC TO REPORT ##################################
 
 ##### I^2 Parameterization of Heterogeneity #####
 
@@ -109,6 +110,29 @@ agg.all %>% filter(clustered == TRUE) %>%
             median(ICCpop),
             max(ICCpop))
 
+
+################################## ONE-STAGE VS. TWO-STAGE ##################################
+
+# @will need to add covariate contrast here
+param.vars = c(
+  "k",
+  "V",
+  "Vzeta",
+  "minN",
+  "true.effect.dist",
+  "TheoryP")
+
+outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
+
+
+# sanity check that we got them all
+t = s %>% group_by(.dots = param.vars) %>%
+  group_by(calib.method.pretty) %>%
+  summarise_at( .vars = outcomes,
+                .funs = meanNA )
+t  
+  
+# bm
 
 
 ################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
@@ -195,12 +219,23 @@ data.frame( my_summarise(dat = make_agg_data( s %>% filter(Phat>0.10 & PhatRef >
 
 ################################## TEST RULES OF THUMB ##################################
 
+# main tables:
+# - Bias results for all scenarios, when omitting the BC-rare scenarios, and when subsetting to normal results?
 
+# - Then similar for coverage results
+
+# for the logitphat2 and phat2, include their results online only
+
+averagefn = "median"
 
 # overall
 selectVars = "all"
 data.frame( my_summarise(dat = agg,
-                         description = "All reps") )
+                         description = "All reps",
+                         averagefn = "mean") )
+data.frame( my_summarise(dat = agg,
+                         description = "All reps",
+                         averagefn = "median") )
 
 # reproduce previous findings
 temp = agg %>% filter( bca.success>0.05 &
@@ -228,18 +263,22 @@ agg5 = make_agg_data( s %>% filter(clustered == FALSE) )
 selectVars = "Phat"
 
 t = rbind( my_summarise(dat = agg,
-                        description = "All reps"),
+                        description = "All reps",
+                        averagefn = averagefn),
            
-           my_summarise(dat = agg2,
-                        description = "No bt fails"),
+           # add one here about the 
            
-           
-           my_summarise(dat = agg3,
-                        description = "Not clustered expo"),
+           # my_summarise(dat = agg2,
+           #              description = "No bt fails"),
+           # 
+           # 
+           # my_summarise(dat = agg3,
+           #              description = "Not clustered expo"),
            
            # **this one gives 0% chance of coverage<85%
            my_summarise(dat = agg4,
-                        description = "Normal"),
+                        description = "Normal",
+                        averagefn = averagefn),
            
            my_summarise(dat = agg5,
                         description = "Unclustered") )  

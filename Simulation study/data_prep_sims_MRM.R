@@ -33,7 +33,7 @@ length(unique(s$scen.name))/1600  # of 1600 total
 # max: 52 miin
 summary(s$repTime)/60
 
-# bias correction simulations
+##### Bias correction simulations (on smaller dataset) #####
 setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-29 bias corrections")
 x = fread("stitched.csv") %>% select(-c("V1", "X", "X.1"))
 table(x$calib.method)
@@ -44,8 +44,6 @@ table(x2$calib.method)
 
 
 ################################## MAKE ITERATE-LEVEL STATS ##################################
-
-
 
 ##### Save Dataset ####
 s3 = make_s3_data(.s=s)

@@ -51,28 +51,33 @@ library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
 #                                   start.at = 1 ) )
 
 # full set of scenarios
-( scen.params = make_scen_params( method = "boot.whole",
-                                  calib.method = "MR",
-
+# IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
+( scen.params = make_scen_params( method = "bt.smart",
+                                  calib.method = c("MR", "DL"),
+                                  
                                   k = rev(c(10, 20, 50, 100, 150)),
+                                  m = c(99, -99), # to be filled in later;  this is just to generate 2 levels
                                   b0 = 0, # intercept
                                   bc = 0.5, # effect of continuous moderator
                                   bb = 1, # effect of binary moderator
-
-                                  zc.star = 0.5,  # "active" level of moderator to consider
+                                  
+                                  # "active" level of moderators to consider
+                                  zc.star = 0.5,  
                                   zb.star = 1,
 
-                                  zc.ref = 2,  # reference levels of moderator to consider
+                                  # reference levels of moderator to consider
+                                  zc.ref = -0.5,
                                   zb.ref = 0,
-
-                                  # Previous choices:
+                                  
+                                  # #Previous choices:
                                   # zc.star = 0.5,  # "active" level of moderator to consider
                                   # zb.star = 1,
-                                  #
+                                  # 
                                   # zc.ref = 2,  # reference levels of moderator to consider
                                   # zb.ref = 0,
-
-                                  V = c( 0.5^2, 0.2^2, 0.1^2 ), # residual variance
+                                  
+                                  V = rev( c( 0.8^2, 0.5^2, 0.2^2, 0.1^2, 0.05^2 ) ), # residual variance
+                                  Vzeta = NA, # to be filled in
                                   muN = NA,  # just a placeholder; to be filled in later
                                   minN = c(50, 800),
                                   sd.w = c(1),
@@ -85,7 +90,26 @@ library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
 summary(scen.params$TheoryP)  # this won't change
 summary(scen.params$TheoryP.ref)
 summary(scen.params$TheoryDiff)
-scen.params$q
+summary(scen.params$q)
+
+# define clustering scenarios
+# m = -99 will be no clustering
+# m = 99 will be clustering
+scen.params$clustered = (scen.params$m == 99)
+scen.params$Vzeta[ scen.params$m == -99 ] = 0
+scen.params$Vzeta[ scen.params$m == 99 ] = scen.params$V[ scen.params$m == 99 ] * 0.75
+scen.params$m[ scen.params$m == -99 ] = scen.params$k[ scen.params$m == -99 ]
+scen.params$m[ scen.params$m == 99 ] = scen.params$k[ scen.params$m == 99 ]/2
+
+# sanity check
+scen.params %>% group_by(clustered) %>%
+  summarise( mean(m/k),
+             mean(Vzeta/V) )
+
+# just to see it
+data.frame(scen.params)
+
+n.scen = nrow(scen.params)
 
 # #### DEBUGGING
 # true.effect.dist = "normal"
@@ -162,8 +186,8 @@ write.csv( scen.params, "scen_params.csv", row.names = FALSE )
 source("helper_MRM.R")
 
 # number of sbatches to generate (i.e., iterations within each scenario)
-n.reps.per.scen = 600  # if you want to generate only 1 file, set this to 10
-n.reps.in.doParallel = 100
+n.reps.per.scen = 500  # if you want to generate only 1 file, set this to 10
+n.reps.in.doParallel = 500
 ( n.files = ( n.reps.per.scen / n.reps.in.doParallel ) * n.scen )
 
 
@@ -203,7 +227,7 @@ n.files
 # max hourly submissions seems to be 300, which is 12 seconds/job
 path = "/home/groups/manishad/MRM"
 setwd( paste(path, "/sbatch_files", sep="") )
-for (i in 11:1440) {
+for (i in 1:1600) {
   #system( paste("sbatch -p owners /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
   system( paste("sbatch -p qsu,owners,normal /home/groups/manishad/MRM/sbatch_files/", i, ".sbatch", sep="") )
   #Sys.sleep(2)  # delay in seconds
