@@ -1,43 +1,43 @@
 
-
-### Quick look at sim results without using continuous covariate:
-
-setwd("~/Desktop")
-sNew = fread("stitched.csv", fill=TRUE)
-nrow(sNew) / (1600*500)
-sNew$group = "new"
-
-mean(sNew$CoverPhat, na.rm=TRUE)  # 93.9%
-mean(sNew$CoverDiff, na.rm=TRUE)  # 91%! whoa
-
-s3New = make_s3_data(sNew)
-aggNew = make_agg_data(s3New)
-selectVars = "all"
-data.frame(my_summarise(aggNew, ""))
-data.frame(my_summarise(aggNew, "", badCoverageCutoff = 0.9))
-
-# **not clustered makes diff coverage go to 95%!!!
-aggNew2 = aggNew %>% filter( !(clustered == TRUE))
-data.frame(my_summarise(aggNew2, ""))
-# this has approximately the same effect
-aggNew3 = aggNew %>% filter(true.effect.dist == "normal")
-data.frame(my_summarise(aggNew3, ""))
-# **exclude only scenarios with clustered exponential
-aggNew4 = aggNew %>% filter( !(true.effect.dist == "expo" & clustered ==TRUE) )
-data.frame(my_summarise(aggNew4, ""))
-data.frame(my_summarise(aggNew4, "", badCoverageCutoff = 0.9))
-
-
-
-# compare: 
-mean(s$CoverPhat, na.rm=TRUE)  # 92.9%
-mean(s$CoverDiff, na.rm=TRUE)  # 78.5%
-s$group = "old"
-
-# compare to same scens in old data
-temp = s %>% filter(scen.name %in% sNew$scen.name)
-mean(temp$CoverPhat, na.rm=TRUE)  # 93%
-mean(temp$CoverDiff, na.rm=TRUE)  # 81%
+# 
+# ### Quick look at sim results without using continuous covariate:
+# 
+# setwd("~/Desktop")
+# sNew = fread("stitched.csv", fill=TRUE)
+# nrow(sNew) / (1600*500)
+# sNew$group = "new"
+# 
+# mean(sNew$CoverPhat, na.rm=TRUE)  # 93.9%
+# mean(sNew$CoverDiff, na.rm=TRUE)  # 91%! whoa
+# 
+# s3New = make_s3_data(sNew)
+# aggNew = make_agg_data(s3New)
+# selectVars = "all"
+# data.frame(my_summarise(aggNew, ""))
+# data.frame(my_summarise(aggNew, "", badCoverageCutoff = 0.9))
+# 
+# # **not clustered makes diff coverage go to 95%!!!
+# aggNew2 = aggNew %>% filter( !(clustered == TRUE))
+# data.frame(my_summarise(aggNew2, ""))
+# # this has approximately the same effect
+# aggNew3 = aggNew %>% filter(true.effect.dist == "normal")
+# data.frame(my_summarise(aggNew3, ""))
+# # **exclude only scenarios with clustered exponential
+# aggNew4 = aggNew %>% filter( !(true.effect.dist == "expo" & clustered ==TRUE) )
+# data.frame(my_summarise(aggNew4, ""))
+# data.frame(my_summarise(aggNew4, "", badCoverageCutoff = 0.9))
+# 
+# 
+# 
+# # compare: 
+# mean(s$CoverPhat, na.rm=TRUE)  # 92.9%
+# mean(s$CoverDiff, na.rm=TRUE)  # 78.5%
+# s$group = "old"
+# 
+# # compare to same scens in old data
+# temp = s %>% filter(scen.name %in% sNew$scen.name)
+# mean(temp$CoverPhat, na.rm=TRUE)  # 93%
+# mean(temp$CoverDiff, na.rm=TRUE)  # 81%
 
 ################################## PRELIMINARIES ##################################
 
@@ -51,39 +51,37 @@ library(testthat)
 
 options(scipen=999)
 
-prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/**2020-9-26 main sims (in RSM_1)"
-results.dir = prepped.data.dir
+prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*Main-text sims/Prepped data"
+results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*Main-text sims/Results from R"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
 
 
 setwd(prepped.data.dir)
 # data aggregated by scenario
-agg.all = fread("*agg_dataset_as_analyzed.csv")
-expect_equal( 1581, nrow(agg.all) ) # 1271 from data prep script
+agg = fread("*agg_dataset.csv")
+expect_equal( 4653, nrow(agg.all) ) # compare to data prep script
 # data for each simulation iterate
-s = fread("s3_dataset_MRM.csv")
+s = fread("s3_dataset.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
 
-# CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
-#to.analyze = "Two-stage"
-#to.analyze = "One-stage"
-to.analyze = c("One-stage", "Two-stage")
+# # CHOOSE WHICH CALIB.METHOD TO ANALYZE (ONE- OR TWO-STAGE):
+# #to.analyze = "Two-stage"
+# #to.analyze = "One-stage"
+# to.analyze = c("One-stage", "Two-stage")
+# 
+# agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
+# # @test: more stringent bca.success criterion
+# #agg = agg %>% filter( bca.success > .10 )
 
-agg = agg.all %>% filter( calib.method.pretty %in% to.analyze )
-# @test: more stringent bca.success criterion
-#agg = agg %>% filter( bca.success > .10 )
-
-# cut to avoid low-bca-success ones
-s = s %>% filter( calib.method.pretty %in% to.analyze & 
-                    scen.name %in% s$scen.name )
+# # cut to avoid low-bca-success ones
+# s = s %>% filter( calib.method.pretty %in% to.analyze & 
+#                     scen.name %in% s$scen.name )
 
 # # restrict s to the analyzed scenarios in agg
 # s = s %>% filter( unique.scen %in% s$unique.scen )
 
-
-summary(s$repTime)/60
 
 
 ################################## I^2 AND ICC TO REPORT ##################################
@@ -104,7 +102,7 @@ round( I2( t2 = c(0.0025, .01, .04, .25, .64),
 # which is exactly Higgins' (2003) benchmark for "moderate" heterogeneity :)
 
 ##### ICC in Clustered Scenarios #####
-agg.all %>% filter(clustered == TRUE) %>%
+agg %>% filter(clustered == TRUE) %>%
   summarise(min(ICCpop),
             mean(ICCpop),
             median(ICCpop),
@@ -114,32 +112,40 @@ agg.all %>% filter(clustered == TRUE) %>%
 ################################## ONE-STAGE VS. TWO-STAGE ##################################
 
 # @will need to add covariate contrast here
-param.vars = c(
+param.vars = c("calib.method.pretty",
   "k",
   "V",
   "Vzeta",
   "minN",
   "true.effect.dist",
-  "TheoryP")
+  "TheoryP",
+  "contrast")
 
 outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
 
+# sanity check:
+# make sure we listed all the param vars
+t = s %>% group_by_at(param.vars) %>%
+  summarise( n = n(),
+             .groups = "keep" )
+# 500 such that each scenario is uniquely defined by the param vars
+expect_equal( unique(t$n), 500 )
 
-# sanity check that we got them all
-t = s %>% group_by(.dots = param.vars) %>%
+
+# compare one-stage to two-stage method
+t = s %>% group_by_at(param.vars) %>%
   group_by(calib.method.pretty) %>%
   summarise_at( .vars = outcomes,
                 .funs = meanNA )
 t  
   
-# bm
 
 
 ################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
 
 # focus on observable variables within scenarios
 # i.e., estimates rather than parameters
-obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail",
+obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail", "calib.method.pretty",
             # last two are only somewhat observed:
             "true.effect.dist", "clustered")
 
@@ -207,15 +213,8 @@ res
 
 bestMod
 
-
-selectVars = "Diff"
-data.frame( my_summarise(dat = make_agg_data( s %>% filter(Phat>0.10 & PhatRef > 0.10) ),
-                         description = "DiffRelBias test") )
-
-# for Phat metrics: want larger muN, larger EstVar, lower PhatBtFail
-# for Diff metrics: want larger k, muN, Diff, lower PhatBtFail
-
-
+setwd(results.dir)
+write.csv(res, "performance_predictors.csv")
 
 ################################## TEST RULES OF THUMB ##################################
 
@@ -226,6 +225,7 @@ data.frame( my_summarise(dat = make_agg_data( s %>% filter(Phat>0.10 & PhatRef >
 
 # for the logitphat2 and phat2, include their results online only
 
+# choose which average to take across scenarios ("median" or "mean")
 averagefn = "median"
 
 # overall

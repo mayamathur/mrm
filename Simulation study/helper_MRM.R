@@ -164,7 +164,8 @@ make_agg_data = function( .s3,
                  "Vzeta",
                  "minN",
                  "true.effect.dist",
-                 "TheoryP")
+                 "TheoryP",
+                 "contrast")
   
   
   # # sanity check for one scenario
@@ -184,6 +185,7 @@ make_agg_data = function( .s3,
   toDrop = c("method", "tail")
   firstOnly = c("scen.name")
   
+  # @MAKE SURE THE BELOW DOESN'T GET THE "SUMMARISE REGROUPING OUTPUT" ERROR
   
   ##### Add New Variables Calculated at the Scenario Level #####
   s4 = .s3 %>%
