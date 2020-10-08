@@ -225,6 +225,9 @@ write.csv(res, "performance_predictors.csv")
 
 # for the logitphat2 and phat2, include their results online only
 
+
+
+
 # choose which average to take across scenarios ("median" or "mean")
 averagefn = "median"
 
@@ -237,28 +240,15 @@ data.frame( my_summarise(dat = agg,
                          description = "All reps",
                          averagefn = "median") )
 
-# reproduce previous findings
-temp = agg %>% filter( bca.success>0.05 &
-                         clustered == FALSE & 
-                         V > 0.0025 & 
-                         V < 0.64 &
-                         EstVar > 0 )  # we previously discarded these reps
 
-data.frame( my_summarise(dat = temp,
-                         description = "Reproduce previous") )
-
-
-# look at filtering rules
-data.frame( my_summarise(dat = agg %>% filter(bca.success>0.1),
-                         description = "All reps") )
 
 ##### For Phat #####
 
 # make filtered dfs
-agg2 = make_agg_data( s %>% filter(PhatBtFail==0) )
-agg3 = make_agg_data( s %>% filter( !(true.effect.dist == "expo" & clustered == TRUE) ) )
-agg4 = make_agg_data( s %>% filter(true.effect.dist == "normal") )
-agg5 = make_agg_data( s %>% filter(clustered == FALSE) )
+agg2 = make_agg_data( s %>% filter(contrast != "BC-rare") )
+agg3 = make_agg_data( s %>% filter(true.effect.dist == "normal") )
+# excluding only clustered expo is same as excluding all clustered
+agg4 = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
 
 selectVars = "Phat"
 
@@ -266,56 +256,81 @@ t = rbind( my_summarise(dat = agg,
                         description = "All reps",
                         averagefn = averagefn),
            
-           # add one here about the 
-           
-           # my_summarise(dat = agg2,
-           #              description = "No bt fails"),
-           # 
-           # 
-           # my_summarise(dat = agg3,
-           #              description = "Not clustered expo"),
-           
+           my_summarise(dat = agg2,
+                        description = "No BC-rare",
+                        averagefn = averagefn),
+
            # **this one gives 0% chance of coverage<85%
-           my_summarise(dat = agg4,
+           my_summarise(dat = agg3,
                         description = "Normal",
                         averagefn = averagefn),
            
-           my_summarise(dat = agg5,
-                        description = "Unclustered") )  
+           # **this one gives 1% chance of coverage<85%
+           my_summarise(dat = agg4,
+                        description = "Not clustered expo",
+                        averagefn = averagefn)
+           )  
 
 View(t)
 
 
 ##### For Diff #####
 
-agg12 = make_agg_data(s %>% filter(PhatBtFail==0) )
+agg5 = make_agg_data( s %>% filter(contrast != "BC-rare" & k>=100 ) )
 
-agg8 = agg %>% filter( bca.success > .10 )
+agg7 = make_agg_data( s %>% filter(contrast != "BC-rare" &
+                                     !(clustered == TRUE & true.effect.dist == "expo") ) )
 
-agg6 = make_agg_data(s %>% filter(k >= 100) )
-
-agg7 = make_agg_data(s %>% filter( k >= 100 &
-                                     !(clustered == TRUE & true.effect.dist == "expo") ) ) 
-
-agg9 = make_agg_data(s %>% filter( k >= 100 &
-                                     true.effect.dist == "normal" ) ) 
-
-agg10 = make_agg_data(s %>% filter( k >= 100 &
-                                      muN==850 &
-                                      true.effect.dist == "normal" &
-                                      clustered == FALSE) ) 
-
-summary(s$EstMeanRelBias)
-summary(s$EstVarRelBias)
-
-# this one filtered at scen level
-agg11 = agg %>% filter(EstMeanRelBias < 0.02 &
-  k>=100 &
-                         EstVarRelBias<.2)
-
-data.frame( my_summarise(agg11, description=""))
+# agg6 = make_agg_data(s %>% filter(k >= 100) )
+# 
+# agg7 = make_agg_data(s %>% filter( k >= 100 &
+#                                      !(clustered == TRUE & true.effect.dist == "expo") ) ) 
+# 
+# agg9 = make_agg_data(s %>% filter( k >= 100 &
+#                                      true.effect.dist == "normal" ) ) 
+# 
+# agg10 = make_agg_data(s %>% filter( k >= 100 &
+#                                       muN==850 &
+#                                       true.effect.dist == "normal" &
+#                                       clustered == FALSE) ) 
 
 selectVars = "Diff"
+
+
+
+t = rbind( my_summarise(dat = agg,
+                        description = "All reps",
+                        averagefn = averagefn),
+           
+           my_summarise(dat = agg2,
+                        description = "No BC-rare",
+                        averagefn = averagefn),
+           
+           my_summarise(dat = agg7,
+                        description = "No BC-rare/not clustered expo",
+                        averagefn = averagefn),
+           
+           my_summarise(dat = agg5,
+                        description = "No BC-rare/k>=100",
+                        averagefn = averagefn),
+           
+           # **this one gives 0% chance of coverage<85%
+           my_summarise(dat = agg3,
+                        description = "Normal",
+                        averagefn = averagefn),
+           
+           # **this one gives 1% chance of coverage<85%
+           my_summarise(dat = agg4,
+                        description = "Not clustered expo",
+                        averagefn = averagefn)
+) 
+View(t)
+
+
+
+
+
+
 t = rbind( my_summarise(dat = agg,
                         description = "All reps"),
            
@@ -346,104 +361,7 @@ View(t)
 # really can't get mean coverage above 89% :(
 
 
-##### Other boot diagnostics - skewness (doesn't work)
 
-s$DiffLo[1:100]
-s$DiffHi[1:100]
-
-# # truncate bounds
-# s$DiffLoTrunc = pmax(s$DiffLo, 0)
-# table(s$DiffLoTrunc == s$DiffLo)  # original bound very often below 0
-# 
-# s$DiffHiTrunc = pmin(s$DiffHi, 1)
-# table(s$DiffHiTrunc == s$DiffHi)  # never had to be truncated
-
-summary(s$DiffHi - s$DiffBtMn)  # sometimes negative, which is a bad sign
-summary(s$DiffBtMn - s$DiffLo)  # sometimes negative, which is a bad sign
-
-s$skew = abs(s$DiffHi - s$DiffBtMn) / abs(s$DiffLo - s$DiffBtMn)
-
-summary(s$skew)
-
-s %>% filter( !is.na(skew) & skew > 50 ) %>%
-  select(DiffLo, DiffBtMn, TheoryDiff, DiffHi, skew) %>%
-  slice_head(n=20)
-
-
-summary(s$DiffHiTrunc - s$DiffBtMn)
-
-s$evil = (s$skew > 2) | (s$DiffHi - s$DiffBtMn < 0) | (s$DiffBtMn - s$DiffLo < 0)
-s$evil = (s$skew > 2)
-s$evil = (s$DiffHi - s$DiffBtMn < 0) | (s$DiffBtMn - s$DiffLo < 0)
-
-table(s$evil)
-
-agg11 = make_agg_data( s %>% filter(evil == FALSE & k >= 100) )
-
-#agg11 = make_agg_data( s %>% filter(k >= 100) )
-
-data.frame( my_summarise(agg11, description=""))
-
-
-
-
-
-##### Other boot diagnostics - Phat2 as a diagnostic rather than a bias corrections
-
-summary( abs(s$Phat2/s$Phat) )
-
-s %>% filter(Phat2/Phat < 1.05) %>%
-  select(Phat, Phat2, PhatBtMn, TheoryP) %>%
-  slice_head(20)
-
-agg11 = make_agg_data( s %>% filter( abs(Phat2/Phat) > 0.98 & abs(Phat2/Phat) < 1.02 ) )
-
-#agg11 = make_agg_data( s %>% filter(k >= 100) )
-
-selectVars = "Phat"
-data.frame( my_summarise(agg11, description=""))
-
-sdata.frame( my_summarise(agg, description=""))
-
-
-
-##### Other filtering criteria - scenarios with okay bias in meta-regression estimators
-# this one filtered at scen levels
-
-agg11 = agg %>% filter(EstMeanRelBias < 0.02 &
-                         k>=100 &
-                         EstVarRelBias<.2)
-
-data.frame( my_summarise(agg11, description=""))
-
-
-
-##### look for the scenarios where it is okay
-mean(s$CoverDiff>.93)  # only 12%
-
-# bm
-obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail",
-            "true.effect.dist", "clustered")
-
-
-obsVars = c("k", "muN",
-            #"PhatBtFail", "bca.success",
-            "true.effect.dist", "clustered")
-
-# bm
-# best subsets
-# ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
-library(rFSA)
-string = paste( "CoverDiff>.93 ~ 1" )
-keepers = c(obsVars, "CoverDiff")
-mod2 = FSA( formula = eval( parse(text = string) ),
-            #data = s[1:1000,] %>% select(keepers),  # for testing
-            data = agg %>% select(keepers),
-            cores = 8,
-            m = 2,  # order of interactions to try
-            interactions = FALSE,
-            criterion = AIC)
-summary(mod2)[[2]]
 
 ################################## COMPARE TO RSM_0 SIMS ##################################
 
