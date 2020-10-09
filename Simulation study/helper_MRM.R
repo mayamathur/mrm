@@ -173,6 +173,10 @@ make_agg_data = function( .s3,
   # summary(s3$PhatRelBias[s3$scen.name == "134" & s3$calib.method == "DL"])
   # table( s3$scen.name == "134" & s3$calib.method == "DL" )
   
+  # sanity check to make sure we've listed all param vars
+  t = .s3 %>% group_by_at(param.vars) %>% summarise(n())
+  if ( max(t$`n()`) > 500 ) stop("param.vars in make_s3_data might be missing something because grouping that way indicated some scenarios had more than 500 reps")
+  
   
   ##### Overwrite Analysis Variables As Their Within-Scenario Means #####
   # organize variables into 3 mutually exclusive sets: 
@@ -184,8 +188,6 @@ make_agg_data = function( .s3,
   names(.s3)[ !names(.s3) %in% param.vars ]  # look at names of vars that need categorizing
   toDrop = c("method", "tail")
   firstOnly = c("scen.name")
-  
-  # @MAKE SURE THE BELOW DOESN'T GET THE "SUMMARISE REGROUPING OUTPUT" ERROR
   
   ##### Add New Variables Calculated at the Scenario Level #####
   s4 = .s3 %>%
