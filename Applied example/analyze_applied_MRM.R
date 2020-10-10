@@ -20,8 +20,8 @@ library(ggplot2)
 setwd("~/Dropbox/Personal computer/Independent studies/MetaUtility R package/MetaUtility/R")
 source("functions.R")
 
-# should we redo the multi-hour bootsrapping for the pointwise CIs on the CDF plots?
-bootstrap.plots.from.scratch = FALSE
+# should we redo the multi-hour bootstrapping for the pointwise CIs on the CDF plots?
+bootstrap.plots.from.scratch = TRUE
 # bm
 boot.reps = 1000
 
@@ -363,6 +363,11 @@ covars = list( c("x.suffer"),
 #               "qual.sdb2",
 #               "x.suffer")
 
+
+# sanity check
+ens = calib_ests(dm$logRR,
+                 sqrt(dm$varlogRR))
+plot(density(ens))  # quick and dirty plot
 
 
 ################################## PHAT FOR EACH LEVEL OF COVARIATES #################################

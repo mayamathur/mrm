@@ -83,7 +83,8 @@ get_phat_hu = function(dat,  # dataset
   mod = robu( yi ~ sws + Sleep.Length,
               data = dat, 
               studynum = study,  
-              var.eff.size = vi )
+              var.eff.size = vi,
+              modelweights = "HIER")
   # coefficient estimates, not including intercept
   bhat = mod$b.r[2:3]
   # estimated residual heterogeneity
@@ -146,7 +147,8 @@ get_phat_mathur = function(.dat,
   m = robu( eval( parse(text = string)),
             data = .dat,
             studynum = authoryear,  # ~~~ clustering
-            var.eff.size = varlogRR )
+            var.eff.size = varlogRR,
+            modelweights = "HIER")
   
   t2 = m$mod_info$tau.sq
   
