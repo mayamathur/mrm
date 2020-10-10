@@ -26,9 +26,12 @@ s = fread("s3_dataset.csv")
 setwd(code.dir)
 source("helper_MRM.R")
 
+# takes about 5 min
+regressions.from.scratch = FALSE
 
 
-################################## I^2 AND ICC TO REPORT ##################################
+
+################################## GENERAL STATS ON SIMULATIONS ##################################
 
 ##### I^2 Parameterization of Heterogeneity #####
 
@@ -52,10 +55,36 @@ agg %>% filter(clustered == TRUE) %>%
             median(ICCpop),
             max(ICCpop))
 
+##### Number and Percentage of Successful Reps #####
+
+# total scenarios
+# this is 2X the number of data-generation parameter combinations because 
+#  each has both MR and DL rows
+nrow(agg)
+# 2400: number of unique data-generation parameters
+nrow(agg) / (2400 * 2)
+# proportion of scenarios that didn't run
+1 - (nrow(agg) / (2400 * 2))
+
+table(agg$calib.method)
+
+data.gen.params = c( "k",
+                     "V",
+                     "Vzeta",
+                     "minN",
+                     "true.effect.dist",
+                     "TheoryP",
+                     "contrast")
+
+# number of unique data generation parameters actually represented in
+#  the results
+x = s %>% group_by_at(data.gen.params) %>%
+  summarise(meanNA(Phat))
+nrow(x)  # 2388 of 2400 possible
+
 
 ################################## ONE-STAGE VS. TWO-STAGE ##################################
 
-# @will need to add covariate contrast here
 param.vars = c("calib.method.pretty",
   "k",
   "V",
@@ -65,7 +94,7 @@ param.vars = c("calib.method.pretty",
   "TheoryP",
   "contrast")
 
-outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
+outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff", "PhatCIWidth", "DiffCIWidth")
 
 # sanity check:
 # make sure we listed all the param vars
@@ -81,7 +110,7 @@ t = s %>% group_by_at(param.vars) %>%
   group_by(calib.method.pretty) %>%
   summarise_at( .vars = outcomes,
                 .funs = meanNA )
-t  
+View(t)  
   
 
 
@@ -95,71 +124,70 @@ obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail", "c
 
 outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
 
-
-# obsVars = c("k", "muN", "Phat", "Diff", "EstMean", "EstVar", "PhatBtFail",
-#             # last two are only somewhat observed:
-#             "true.effect.dist", "clustered")
-# outcomes = c("CoverDiff")
-
-# at scenario level rather than individual iterate level
-for (i in outcomes){
-  string = paste( i, "~", paste(obsVars, collapse = "+"), sep="" )
-  mod = lm( eval(parse(text=string)),
-            data = s )
+# takes about 5 min
+if ( regressions.from.scratch == TRUE ) {
+  # at scenario level rather than individual iterate level
+  for (i in outcomes){
+    string = paste( i, "~", paste(obsVars, collapse = "+"), sep="" )
+    mod = lm( eval(parse(text=string)),
+              data = s )
+    
+    library(sandwich)
+    SEs = diag( vcovCL(mod, type="HC0", cluster = ~ scen.name) )
+    SEs = SEs[ !names(SEs) == "(Intercept)" ]
+    
+    coefs = mod$coefficients[ !names(mod$coefficients) == "(Intercept)" ]
+    z = coefs/SEs
+    pvals = 2 * ( 1 - pnorm( abs(z) ) )
+    
+    # which vars are good vs. bad for the outcome?
+    # flip coeff signs so that positive means it improves the outcome
+    if ( grepl(pattern = "Bias", x = i) ) coefs = -coefs
+    good = names( coefs[ coefs > 0 & pvals < 0.001 ] )
+    bad = names( coefs[ coefs < 0 & pvals < 0.001 ] )
+    
+    good = paste(good, collapse = ",")
+    bad = paste(bad, collapse = ",")
+    
+    newRow = data.frame( outcome = i,
+                         good = good, 
+                         bad = bad )
+    
+    if (i==outcomes[1]) res = newRow else res = rbind(res, newRow)
+    
+    cat( paste("\n\n*******************", toupper(i), " PREDICTORS*******************\n" ) )
+    print(summary(mod))
+    
+    
+    # best subsets
+    # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
+    library(rFSA)
+    string = paste( i, " ~ 1", sep="" )
+    keepers = c(obsVars, i)
+    mod2 = FSA( formula = eval( parse(text = string) ),
+                #data = s[1:1000,] %>% select(keepers),  # for testing
+                data = s %>% select(keepers),
+                cores = 8,
+                m = 2,  # order of interactions to try
+                interactions = FALSE,
+                criterion = AIC)
+    mod2
+    
+    if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
+  }
   
-  library(sandwich)
-  SEs = diag( vcovCL(mod, type="HC0", cluster = ~ scen.name) )
-  SEs = SEs[ !names(SEs) == "(Intercept)" ]
   
-  coefs = mod$coefficients[ !names(mod$coefficients) == "(Intercept)" ]
-  z = coefs/SEs
-  pvals = 2 * ( 1 - pnorm( abs(z) ) )
+  # look at results
+  res
   
-  # which vars are good vs. bad for the outcome?
-  # flip coeff signs so that positive means it improves the outcome
-  if ( grepl(pattern = "Bias", x = i) ) coefs = -coefs
-  good = names( coefs[ coefs > 0 & pvals < 0.001 ] )
-  bad = names( coefs[ coefs < 0 & pvals < 0.001 ] )
+  bestMod
   
-  good = paste(good, collapse = ",")
-  bad = paste(bad, collapse = ",")
-  
-  newRow = data.frame( outcome = i,
-                       good = good, 
-                       bad = bad )
-  
-  if (i==outcomes[1]) res = newRow else res = rbind(res, newRow)
-  
-  cat( paste("\n\n*******************", toupper(i), " PREDICTORS*******************\n" ) )
-  print(summary(mod))
-  
-  
-  # best subsets
-  # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
-  library(rFSA)
-  string = paste( i, " ~ 1", sep="" )
-  keepers = c(obsVars, i)
-  mod2 = FSA( formula = eval( parse(text = string) ),
-              #data = s[1:1000,] %>% select(keepers),  # for testing
-              data = s %>% select(keepers),
-              cores = 8,
-              m = 2,  # order of interactions to try
-              interactions = FALSE,
-              criterion = AIC)
-  mod2
-  
-  if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
+  setwd(results.dir)
+  write.csv(res, "performance_predictors.csv")
 }
 
 
-# look at results
-res
-
-bestMod
-
-setwd(results.dir)
-write.csv(res, "performance_predictors.csv")
-
+# bm
 
 ################################## TABLES FOR PAPER, WITH RULES OF THUMB ##################################
 
@@ -177,7 +205,7 @@ averagefn = "median"
 
 ##### For Phat #####
 
-# make filtered dfs
+# make filtered dfs (will form rows of table)
 agg2 = make_agg_data( s %>% filter(contrast != "BC-rare") )
 agg3 = make_agg_data( s %>% filter(true.effect.dist == "normal") )
 # excluding only clustered expo is same as excluding all clustered
@@ -189,10 +217,6 @@ t1 = rbind( my_summarise(dat = agg,
                         description = "All reps",
                         averagefn = averagefn),
            
-           # my_summarise(dat = agg2,
-           #              description = "No BC-rare",
-           #              averagefn = averagefn),
-
            # **this one gives 0% chance of coverage<85%
            my_summarise(dat = agg3,
                         description = "Normal",
@@ -201,8 +225,7 @@ t1 = rbind( my_summarise(dat = agg,
            # **this one gives 1% chance of coverage<85%
            my_summarise(dat = agg4,
                         description = "Not clustered expo",
-                        averagefn = averagefn)
-           )  
+                        averagefn = averagefn) )  
 
 View(t1)
 
@@ -244,21 +267,22 @@ agg5 = make_agg_data( s %>% filter(contrast != "BC-rare" &
 
 selectVars = "Diff"
 
-
 t2 = rbind( my_summarise(dat = agg,
                          description = "All reps",
-                         averagefn = averagefn),
-            
-            my_summarise(dat = agg2,
-                         description = "No BC-rare",
                          averagefn = averagefn),
             
             my_summarise(dat = agg3,
                          description = "Normal",
                          averagefn = averagefn),
             
+            
+            my_summarise(dat = agg2,
+                         description = "Not BC-rare",
+                         averagefn = averagefn),
+            
+
             my_summarise(dat = agg5,
-                         description = "No BC-rare/not clustered expo",
+                         description = "Not BC-rare nor clustered expo",
                          averagefn = averagefn)
 ) 
 View(t2)
@@ -283,7 +307,6 @@ write.csv(t2 %>% select(keepers), "diff_results_table.csv")
 
 # diff, phat, logitphat, etc.
 
-
 selectVars = "all"
 t3 = rbind( my_summarise(dat = agg,
                          description = "All reps",
@@ -306,51 +329,44 @@ t3 = rbind( my_summarise(dat = agg,
                          averagefn = averagefn) ) 
 
 
-# save pretty table for paper
-# keepers = c("Scenarios",
-#             "n.scens", 
-#             "DiffBias",
-#             "DiffAbsBias",
-#             "DiffRelBias",
-#             "EstMeanRelBias",
-#             "EstVarRelBias",
-#             "CoverDiff",
-#             "BadDiffCover")
 setwd(results.dir)
 write.csv(t3, "extended_performance_table.csv")
-# @ put this on OSF and document it
 
 
-# bm
 
-################################## BIAS CORRECTIONS ##################################
+################################## BIAS-CORRECT META-REGRESSION ESTIMATES IN WORST SCENARIOS ##################################
 
-# these used 1000 boot reps for the bias corrections and CIs
-
-
-setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*2020-10-1 correct meta-regression (Supplement)")
+setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/Supplement - boot-correct meta-regression")
 
 # "b" for "bias correction"
 s2b = fread("stitched.csv")
+s2b$contrast = "BC-rare"
 
 s3b = make_s3_data(s2b)
 
-# one row per scenario, so 3 rows per scen.name.in.main
+
+# has one row per scenario, so 3 rows per scen.name.in.main
 aggb = make_agg_data(s3b)
 
 selectVars = "all"
 
-t = data.frame( rbind( my_summarise(dat = aggb %>% filter(calib.method == "MR"), description = "MR"),
-                       my_summarise(dat = aggb %>% filter(calib.method == "MR bt both correct"), description = "Bt correct"),
-                       my_summarise(dat = aggb %>% filter(calib.method == "params"), description = "params") ) )
+t = data.frame( rbind( my_summarise(dat = aggb %>% filter(calib.method == "MR"),
+                                    description = "MR"),
+                       
+                       my_summarise(dat = aggb %>% filter(calib.method == "MR bt both correct"),
+                                    description = "Bt correct"),
+                       
+                       my_summarise(dat = aggb %>% filter(calib.method == "params"),
+                                    description = "params") ) )
 
-t = t %>% select("Scenarios", "PhatBias", "PhatRelBias", "DiffBias", "DiffRelBias")
+t = t %>% select("Scenarios", "PhatBias", "PhatAbsBias",  "PhatRelBias", "DiffBias", "DiffAbsBias", "DiffRelBias")
 t
-
-# put this in the paper! 
 
 # yes, the bias corrections make the bias worse...
 
+setwd(results.dir)
+setwd("Tables to prettify")
+fwrite(t, "supplement_meta_regression_corrections.csv")
 
 
 

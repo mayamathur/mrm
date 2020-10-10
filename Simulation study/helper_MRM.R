@@ -307,6 +307,11 @@ namesWith = function(pattern, dat){
   names(dat)[ grepl(pattern = pattern, x = names(dat) ) ]
 }
 
+# quick length(unique)
+uni = function(x) {
+  length(unique(x))
+}
+
 ############################# FN: MAKE SUMMARY TABLE FOR ANALYSIS #############################
 
 # summarize performance metrics given a dataset (dat) that is already scenario-aggregated
