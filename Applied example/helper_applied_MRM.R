@@ -43,17 +43,36 @@ phat_ci_hu = function(.dat, .q){
 phat_ci_mathur = function(.dat, .q, .covars){
   datNest = .dat %>% group_nest(authoryear)
   
-  boot.res = boot( data = datNest, 
+  # bm
+  # @sourced from sim study script
+  boot.res = my_boot( data = datNest, 
                    parallel = "multicore",
                    R = boot.reps, 
                    statistic = function(original, indices) {
                      bNest = original[indices,]
                      b = bNest %>% unnest(data)
                      
-                     get_phat_mathur(.dat = b,
-                                     .q = .q,
-                                     .covars = .covars)[1]
+                     tryCatch({
+                       get_phat_mathur(.dat = b,
+                                       .q = .q,
+                                       .covars = .covars)[1]
+                     }, error = function(err){
+                       return(NA)
+                     })
+                     
                    } )
+  
+  # boot.res = boot( data = datNest, 
+  #                  parallel = "multicore",
+  #                  R = boot.reps, 
+  #                  statistic = function(original, indices) {
+  #                    bNest = original[indices,]
+  #                    b = bNest %>% unnest(data)
+  #                    
+  #                    get_phat_mathur(.dat = b,
+  #                                    .q = .q,
+  #                                    .covars = .covars)[1]
+  #                  } )
   
   # order of stats:
   # Phat, Phat.ref, Phat - Phat.ref
@@ -146,9 +165,9 @@ get_phat_mathur = function(.dat,
   
   m = robu( eval( parse(text = string)),
             data = .dat,
-            studynum = authoryear,  # ~~~ clustering
+            studynum = authoryear,  
             var.eff.size = varlogRR,
-            modelweights = "HIER")
+            modelweights = "CORR")  # CORR because many studies had shared control groups
   
   t2 = m$mod_info$tau.sq
   
@@ -282,5 +301,57 @@ my_ggsave = function(name,
           width = width, 
           height = width,
           units = "in")
+}
+
+
+# for reproducible manuscript-writing
+# expects global variables "results.dir" and "overleaf.dir"
+# adds a row to the file "stats_for_paper" with a new statistic or value for the manuscript
+# optionally, "section" describes the section of code producing a given result
+update_result_csv = function( name,
+                              section = NA,
+                              value = NA,
+                              print = FALSE ) {
+  setwd(results.dir)
+  
+  new.rows = data.frame( name,
+                         value = as.character(value),
+                         section = as.character(section) )
+  
+  # to avoid issues with variable types when overwriting
+  new.rows$name = as.character(new.rows$name)
+  new.rows$value = as.character(new.rows$value)
+  new.rows$section = as.character(new.rows$section)
+  
+  
+  if ( "stats_for_paper.csv" %in% list.files() ) {
+    .res = read.csv( "stats_for_paper.csv",
+                     stringsAsFactors = FALSE,
+                     colClasses = rep("character", 3 ) )
+    
+    # if this entry is already in the results file, overwrite the
+    #  old one
+    if ( all(name %in% .res$name) ) .res[ .res$name %in% name, ] = new.rows
+    else .res = rbind(.res, new.rows)
+  }
+  if ( !"stats_for_paper.csv" %in% list.files() ) {
+    .res = new.rows
+  }
+  
+  write.csv( .res, 
+             "stats_for_paper.csv",
+             row.names = FALSE,
+             quote = FALSE )
+  
+  # also write to Overleaf
+  setwd(overleaf.dir)
+  write.csv( .res, 
+             "stats_for_paper.csv",
+             row.names = FALSE,
+             quote = FALSE )
+  
+  if ( print == TRUE ) {
+    View(.res)
+  }
 }
 

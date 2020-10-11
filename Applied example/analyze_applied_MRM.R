@@ -21,13 +21,17 @@ setwd("~/Dropbox/Personal computer/Independent studies/MetaUtility R package/Met
 source("functions.R")
 
 # should we redo the multi-hour bootstrapping for the pointwise CIs on the CDF plots?
-bootstrap.plots.from.scratch = TRUE
+bootstrap.plots.from.scratch = FALSE
 # bm
 boot.reps = 1000
+# for rounding
+digits = 0
+
+overwrite.results = TRUE
 
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Prepped data"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Applied example"
-overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression (MRM)"
+#overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression (MRM)"
 results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Results from R"
 
 setwd(code.dir)
@@ -71,7 +75,7 @@ rma.mv(yi=Hedges..g, V = Variances, data=dh, slab=StudyID, random = ~ 1 | StudyI
 # threshold (Hedges' g)
 q = .2
 
-
+# **marginal Phat
 ( Phat = prop_stronger(q = q, 
                        tail = "above",
                        dat = dh,
@@ -79,6 +83,7 @@ q = .2
                        yi.name = "yi",
                        vi.name = "vi",
                        cluster.name = "StudyID") )
+
 
 # sanity check
 ens = calib_ests(dh$yi,
@@ -90,20 +95,20 @@ plot(density(ens))  # quick and dirty plot
 
 ################################## META-REGRESSIVE PHAT AND DIFFERENCE #################################
 
+# percentile of studies with 2h and 8h of sleep
+mean(dh$Sleep.Length<2)
+mean(dh$Sleep.Length<8)
+# and with SWS vs. not
+mean(dh$sws)
+
 # compare (SWS, 8h sleep) to (not SWS, 2h sleep)
 z = c(1, 8)
 z0 = c(0, 2)
 stats = get_phat_hu(dat = dh,
-                      q = q,
-                      z = z,
-                      z0 = z0,
-                      return.meta = TRUE)
-
-# look at meta-regression coefficients
-stats[[1]]
-
-# and Phats
-stats[[2]]
+                    q = q,
+                    z = z,
+                    z0 = z0,
+                    return.meta = TRUE)
 
 # calibrated estimates 
 dh$ens.shift = stats[[3]]  # shifted to Z=0
@@ -126,17 +131,23 @@ boot.res = boot( data = dhNest,
                     b = bNest %>% unnest(data)
                     
                     get_phat_hu(dat = b,
-                                     q = q,
-                                     z = z,
-                                     z0 = z0,
-                                     return.meta = FALSE)
+                                q = q,
+                                z = z,
+                                z0 = z0,
+                                return.meta = FALSE)
                  } )
 
-# order of stats:
-# Phat, Phat.ref, Phat - Phat.ref
-( bootCIs = get_boot_CIs(boot.res, n.ests = 3) )
-# point estimates:
+
+##### Results for Paper #####
+
+# **meta-regression coefficients
+stats[[1]]
+
+# **Phats (Phat, Phat.ref, Phat - Phat.ref)
 stats[[2]]
+# their CIs
+( bootCIs = get_boot_CIs(boot.res, n.ests = 3) )
+
 
 ################################## FIG 1: MARGINAL AND CONDITIONAL CALIBRATED ESTIMATES #################################
 
@@ -165,7 +176,7 @@ ggplot( data = dh ) +
                  color = "black",
                  fill = "black",
                  alpha = 0.3) +
-
+   
    
    theme_bw() +
    
@@ -173,19 +184,20 @@ ggplot( data = dh ) +
    scale_x_continuous( limits = c(-1.25, 1.5), breaks = seq(-1.25, 1.5, 0.25)) +
    
    ylab("Density") +
-
+   
    theme(axis.text.y = element_blank(),
          axis.ticks = element_blank(),
          panel.grid.major = element_blank(),
          panel.grid.minor = element_blank())
-   
 
 
-my_ggsave("hu_calib_plot.pdf",
-          width = 8,
-          height = 1)
 
 
+if (overwrite.results == TRUE){
+   my_ggsave("hu_calib_plot.pdf",
+             width = 8,
+             height = 1)
+}
 
 
 
@@ -226,13 +238,12 @@ if (bootstrap.plots.from.scratch == TRUE) {
    
    
    temp$q = res.short$q
-   temp$Est = 100*temp$Est
+   #temp$Est = 100*res.short$Est
    
    # merge this with the full-length res dataframe, merging by Phat itself
    res = merge( res, temp, by.x = "q", by.y = "q")
    
-   # # NOT USED?
-   # # turn into percentage
+   # turn into percentage
    res$Est = 100*res$Est
    res$lo = 100*res$lo
    res$hi = 100*res$hi
@@ -264,7 +275,7 @@ ggplot( data = res,
                color = "black" ) +
    
    scale_y_continuous(  breaks = seq(0, 100, 10) ) +
-
+   
    scale_x_continuous(  breaks = seq(-1, 1.25, .25) ) +
    
    geom_line(lwd=1.2) +
@@ -275,16 +286,19 @@ ggplot( data = res,
    geom_ribbon( aes(ymin=lo, ymax=hi), alpha=0.15, fill = "black" ) 
 
 
-my_ggsave(name = "hu_cdf_plot.pdf",
-          width = 4,
-          height = 4)
+if ( overwrite.results == TRUE){
+   my_ggsave(name = "hu_cdf_plot.pdf",
+             width = 4,
+             height = 4)
+}
+
+
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                             EXAMPLE 2: MEAT CONSUMPTION            
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-
 
 
 # # works but is very imprecise CI:
@@ -342,6 +356,8 @@ my_ggsave(name = "hu_cdf_plot.pdf",
 
 ################################## BASIC STATS ##################################
 
+# bm
+
 # will get Phat for two sets of binary covariates in turn
 # either just graphic contents ("x.suffer") or graphic contents plus 4 risk-of-bias indicators
 covars = list( c("x.suffer"),
@@ -351,17 +367,6 @@ covars = list( c("x.suffer"),
                  "qual.gen2",
                  "qual.sdb2",
                  "x.suffer") )
-
-# #  studies at low risk on more characteristics (exch, gen, sdb, prox)
-# # 70% (48%, 87%)
-# .covars = c("x.suffer")
-# 
-# # 97% 
-# .covars = c("qual.y.prox2",
-#               "qual.exch2",
-#               "qual.gen2",
-#               "qual.sdb2",
-#               "x.suffer")
 
 
 # sanity check
@@ -379,8 +384,7 @@ for ( i in 1:length(covars) ){
    
    # remove ones missing the quality variables
    dm = dm %>% drop_na(.covars)
-   print( dim(dm) ) # 77 had no missing data
-   # the 23 exclusions are all due to studies that didn't report amount of missing data)
+   print( dim(dm) ) 
    
    # proportion high on each quality variable
    print( colMeans( dm %>% select(.covars) ) )
@@ -398,27 +402,32 @@ for ( i in 1:length(covars) ){
                             .covars = .covars,
                             .return.meta = TRUE) )
    
-   
+   # with i=2, sometimes hits errors because no tryCatch loop
+   #  for bad boot iterates
    CI = phat_ci_mathur(.dat = dm,
                        .q = log(1.1),
                        .covars = .covars)
- 
+   
    row = data.frame(    bhatGraphic = exp(phat[[1]]$b.r[2]),
                         bhatGraphicLo = exp(phat[[1]]$reg_table$CI.L[2]),
                         bhatGraphicHi = exp(phat[[1]]$reg_table$CI.U[2]),
                         
                         Phat = 100*phat[[2]],
-                        PhatLo = 100*CI[[4]][4],
-                        PhatHi = 100*CI[[4]][5] )
-
+                        PhatLo = 100*CI[1],
+                        PhatHi = 100*CI[2] )
+   
    if ( i == 1 ) mathur.res = row else mathur.res = rbind(mathur.res, row)
 }
 
 
-setwd(results.dir)
-write.csv(mathur.res, "mathur_phat_estimates.csv")
+# **stats for paper
+if (overwrite.results == TRUE){
+   setwd(results.dir)
+   write.csv(mathur.res, "mathur_phat_estimates.csv")
+}
 
 
+# 21, 1
 
 ################################## FIG 3: COMPLEMENTARY CDF #################################
 
@@ -431,7 +440,7 @@ ql = as.list(q.vec)
 Phat.above.vec = lapply( ql,
                          FUN = function(.q) get_phat_mathur(.dat = dm,
                                                             .q = .q,
-                                                             .covars = covars[[1]] ) )
+                                                            .covars = covars[[1]] ) )
 
 res = data.frame( q = q.vec,
                   Est = unlist(Phat.above.vec) )
@@ -445,18 +454,18 @@ res.short = res[ diff(res$Est) != 0, ]
 
 
 # bootstrap a CI for each entry in res.short
-# takes ~2-3 hrs
+# takes ~30 min
 if (bootstrap.plots.from.scratch == TRUE) {
    temp = res.short %>% rowwise() %>%
       do( phat_ci_mathur(.dat = dm, .covars = covars[[1]], .q = .$q) )
    
    
    temp$q = res.short$q
-   temp$Est = 100*temp$Est
+   #temp$Est = 100*temp$Est
    
    # merge this with the full-length res dataframe, merging by Phat itself
    res = merge( res, temp, by.x = "q", by.y = "q")
-
+   
    # # turn into percentage
    res$Est = 100*res$Est
    res$lo = 100*res$lo
@@ -497,10 +506,14 @@ ggplot( data = res,
 
 
 
+if (overwrite.results == TRUE){
+   my_ggsave(name = "mathur_cdf_plot.pdf",
+             width = 8,
+             height = 4)
+}
 
-my_ggsave(name = "mathur_cdf_plot.pdf",
-          width = 8,
-          height = 4)
+
+
 
 
 
