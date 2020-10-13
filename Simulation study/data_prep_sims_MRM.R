@@ -60,31 +60,3 @@ nrow(agg)  # would be 1600*3 if there were no simulation failures at the scenari
 setwd(prepped.data.dir)
 fwrite(agg, "*agg_dataset.csv")
 
-
-#  MOVE ELSEWHERE:
-# ##### Bias correction simulations (on smaller dataset) #####
-# setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-29 bias corrections")
-# x = fread("stitched.csv") %>% select(-c("V1", "X", "X.1"))
-# table(x$calib.method)
-# 
-# setwd("~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/2020-9-28 bias corrections")
-# x2 = fread("stitched_MR_and_params_methods.csv") %>% select(-c("V1", "X"))
-# table(x2$calib.method)
-
-# #### Additional Dataset with Bias Corrections #####
-# names(x)[ !names(x) %in% names(x2) ]
-# names(x2)[ !names(x2) %in% names(x) ]
-# nrow(x)
-# nrow(x2)
-# sBias = bind_rows(x, x2)
-# nrow(sBias)
-# 
-# # should be 1500 reps per scenario because each has 3 methods (MR, MR bt mn both correct, params)
-# table(sBias$scen.name.in.main)
-# 
-# s3Bias = make_s3_data(sBias)
-# 
-# s3Bias %>% group_by(calib.method) %>%
-#   summarise(mean(PhatRelBias, na.rm=TRUE),
-#             mean(Phat, na.rm=TRUE))
-

@@ -1,13 +1,6 @@
 
 # audited 2020-6-17
 
-
-# to update
-# can't rely on bootstrap notes for bca.success anymore because 
-#   now that only happens when the resampling fails, not the CIs
-#   should use NAs in each respective CI instead
-
-
 # because Sherlock 2.0 restores previous workspace
 rm( list = ls() )
 

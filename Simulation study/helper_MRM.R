@@ -730,6 +730,8 @@ sim_data2 = function( k, # total number of studies
 
 # all arguments that are scen parameters can be vectors
 #  for use in expand_grid
+# method: "bt.smart" (regular bootstrap or cluster bootstrap as needed) or "no.ci" (don't calculate a CI)
+# calib.method: "MR" (one-stage), "DL" (two-stage), "MR bt both correct" (apply boot bias correction to conditional mean and heterogeneity), "MR bt mean correct" (apply boot bias correction to conditional mean only), "MR bt var correct" (apply boot bias correction to heterogeneity only) 
 make_scen_params = function( method, 
                              calib.method,
                              k,

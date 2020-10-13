@@ -1,7 +1,7 @@
 
 # code audited 2020-6-17
 
-#@NOTE: SHOULD PROBABLY USE MODELWEIGHTS = HIER FOR THESE
+# "**": results reported in manuscript
 
 ################################## READ IN DATA ################################## 
 
@@ -22,7 +22,6 @@ source("functions.R")
 
 # should we redo the multi-hour bootstrapping for the pointwise CIs on the CDF plots?
 bootstrap.plots.from.scratch = FALSE
-# bm
 boot.reps = 1000
 # for rounding
 digits = 0
@@ -31,7 +30,7 @@ overwrite.results = TRUE
 
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Prepped data"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Applied example"
-#overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression (MRM)"
+overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression (MRM)"
 results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Applied example/Results from R"
 
 setwd(code.dir)
@@ -92,6 +91,7 @@ mean(ens)  # 0.23: lower than meta-analytic estimate, but still > q
 quantile(ens, c(.25, .5, .75))  
 mean(ens>q)  # less than 0.5 because of skewness
 plot(density(ens))  # quick and dirty plot
+
 
 ################################## META-REGRESSIVE PHAT AND DIFFERENCE #################################
 
@@ -192,11 +192,10 @@ ggplot( data = dh ) +
 
 
 
-
 if (overwrite.results == TRUE){
    my_ggsave("hu_calib_plot.pdf",
-             width = 8,
-             height = 1)
+             width = 5,
+             height = 3.5)
 }
 
 
@@ -301,62 +300,7 @@ if ( overwrite.results == TRUE){
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
-# # works but is very imprecise CI:
-# .covars = c("qual.y.prox2",
-#               #"low.miss",
-#               "qual.exch2",
-#               "qual.gen2",
-#               "qual.sdb2",
-#               "qual.prereg2",
-#               "qual.public.data2"
-#               )
-# 
-# # CI: 36%, 100%
-# .covars = c("qual.exch2",
-#               "qual.sdb2")
-# 
-# # CI: 13%, 100%
-# .covars = c("qual.y.prox2",
-#               "qual.exch2",
-#               "qual.gen2",
-#               "qual.sdb2")
-# 
-# # CI: 39%, 100%
-# .covars = c("qual.exch2",
-#               "qual.y.prox2")
-# 
-# # **95% (70%, 100%)
-# .covars = c("qual.exch2")
-# 
-# # **91% (25%, 100%)
-# .covars = c("qual.y.prox2",
-#               #"low.miss",
-#               "qual.exch2",
-#               "qual.gen2",
-#               "qual.sdb2"
-#               #"qual.prereg2",
-#               #"qual.public.data2"
-# )
-# 
-# 
-# ##### ***Social norms in exchangeable studies vs.
-# #  studies at low risk on more characteristics (exch, gen, sdb, prox)
-# # 93% (63%, 100%)
-# .covars = c("qual.exch2",
-#               "x.soc.norm" )
-# 
-# # 90% (11%, 100%)
-# .covars = c("qual.y.prox2",
-#               "qual.exch2",
-#               "qual.gen2",
-#               "qual.sdb2",
-#               "x.soc.norm")
-
-
-
 ################################## BASIC STATS ##################################
-
-# bm
 
 # will get Phat for two sets of binary covariates in turn
 # either just graphic contents ("x.suffer") or graphic contents plus 4 risk-of-bias indicators
@@ -427,7 +371,16 @@ if (overwrite.results == TRUE){
 }
 
 
-# 21, 1
+# **effect modification RR for graphic content in the smaller model
+round( mathur.res[1, c("bhatGraphic", "bhatGraphicLo", "bhatGraphicHi")], 2 )
+
+# **70\% (95\% CI: [49\%, 86\%]) of effects in studies of graphic interventions
+#  were stronger than $RR=1.1$
+round( mathur.res[1, c("Phat", "lo", "hi")], 0 )
+
+
+# **97\% (95\% CI: [16\%, 100\%]) in hypothetical high-quality studies of graphic interventions
+round( mathur.res[2, c("Phat", "lo", "hi")], 0 )
 
 ################################## FIG 3: COMPLEMENTARY CDF #################################
 
@@ -436,7 +389,7 @@ if (overwrite.results == TRUE){
 q.vec = seq( log(0.9), log(2), 0.01 )
 ql = as.list(q.vec)
 
-
+# look at covars[[1]] for studies with graphic content, without conditioning on risks of bias
 Phat.above.vec = lapply( ql,
                          FUN = function(.q) get_phat_mathur(.dat = dm,
                                                             .q = .q,
@@ -480,6 +433,9 @@ if (bootstrap.plots.from.scratch == TRUE) {
 }
 
 
+# sanity check: compare CI at points near q=log(1.1) to the one in mathur.res
+res %>% filter( abs(q - log(1.1)) < 0.01 )
+mathur.res[1,]
 
 
 ##### Make Plot #####
@@ -493,7 +449,7 @@ ggplot( data = res,
                lty = 2,
                color = "black" ) +
    
-   scale_y_continuous( breaks = seq(0, 100, 10) ) +
+   scale_y_continuous( breaks = seq(-10, 100, 10) ) +
    
    scale_x_continuous( limits = c(0.9, 2), breaks = seq(0.9, 2, .1) ) +
    
@@ -508,12 +464,8 @@ ggplot( data = res,
 
 if (overwrite.results == TRUE){
    my_ggsave(name = "mathur_cdf_plot.pdf",
-             width = 8,
+             width = 4,
              height = 4)
 }
-
-
-
-
 
 

@@ -52,7 +52,7 @@ library(metRology, lib.loc = "/home/groups/manishad/Rpackages/")
 
 # full set of scenarios
 # IMPORTANT: METHOD MUST HAVE "BT" IN ITS NAME TO BE RECOGNIZED AS BOOTSTRAPPING
-( scen.params = make_scen_params( method = "bt.smart",
+( scen.params = make_scen_params( method = "bt.smart", 
                                   calib.method = c("MR", "DL"),
                                   
                                   k = rev(c(10, 20, 50, 100, 150)),
