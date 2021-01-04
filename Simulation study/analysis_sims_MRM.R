@@ -13,7 +13,9 @@ options(scipen=999)
 
 prepped.data.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*Main-text sims/Prepped data"
 results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*Main-text sims/Results from R"
+figures.results.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Simulation study results/*Main-text sims/Results from R/Figures"
 code.dir = "~/Dropbox/Personal computer/Independent studies/2020/Meta-regression metrics (MRM)/Code (git)/Simulation study"
+overleaf.dir = "~/Dropbox/Apps/Overleaf/Moderators in meta-regression (MRM)/supp_figures"
 
 
 setwd(prepped.data.dir)
@@ -25,6 +27,7 @@ s = fread("s3_dataset.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
+source("analysis_sims_helper_MRM.R")
 
 # takes about 5 min
 regressions.from.scratch = FALSE
@@ -82,17 +85,27 @@ x = s %>% group_by_at(data.gen.params) %>%
   summarise(meanNA(Phat))
 nrow(x)  # 2388 of 2400 possible
 
+##### Rep Time #####
+# this variable is the number of seconds for the ENTIRE loop in each doParallel file, so represents the time to complete sim.reps=500 parallelized iterates 
+# so this is basically the time to run each scenario
+
+# express in total days of simulation time across all nodes
+totalSimTime = sum(agg$repTime)
+secondsPerDay = 86400
+totalSimTime / secondsPerDay
+# 79 days of computational time
+
 
 ################################## ONE-STAGE VS. TWO-STAGE ##################################
 
 param.vars = c("calib.method.pretty",
-  "k",
-  "V",
-  "Vzeta",
-  "minN",
-  "true.effect.dist",
-  "TheoryP",
-  "contrast")
+               "k",
+               "V",
+               "Vzeta",
+               "minN",
+               "true.effect.dist",
+               "TheoryP",
+               "contrast")
 
 outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff", "PhatCIWidth", "DiffCIWidth")
 
@@ -111,7 +124,7 @@ t = s %>% group_by_at(param.vars) %>%
   summarise_at( .vars = outcomes,
                 .funs = meanNA )
 View(t)  
-  
+
 
 
 ################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
@@ -186,7 +199,132 @@ if ( regressions.from.scratch == TRUE ) {
   write.csv(res, "performance_predictors.csv")
 }
 
-s
+
+################################## FIGURES ##################################
+
+# ***to do (continuous):
+# EstVar, Phat
+
+# wipe existing files
+setwd(figures.results.dir)
+system("rm *")
+setwd(overleaf.dir)
+system("rm *")
+
+
+# put these in the order they should appear in manuscript
+outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
+
+# simplified list of categorical observed variables
+categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty", "contrast")
+# also Phat, but it's continuous
+
+
+# pretty variable names for X-axis
+agg$true.effect.dist.pretty = dplyr::recode( agg$true.effect.dist,
+                                             expo = "Exponential",
+                                             normal = "Normal")
+
+agg$clustered.pretty = dplyr::recode( agg$clustered,
+                                      `0` = "Not clustered",
+                                      `1` = "Clustered")
+
+
+#bm
+my_violins( xName = "k",
+            yName = "PhatRelBias",
+            hline = 0,
+            xlab = "X",
+            ylab = "Y",
+            yTicks = seq(0,1,.1),
+            prefix = LETTERS[3])
+
+
+
+
+alphaIndex = 1
+
+for ( y in outcomes ) {
+  
+  yTicks = NA
+  
+ 
+  
+  # set up y-labels and hline
+  if ( y == "PhatRelBias" ) {
+    ylab = "Relative bias in estimated proportion above q"
+    hline = 0
+    yTicks = seq(0, 5, 1)
+    
+    #cat("\\subsubsection{Relative bias in est prop}")
+  }
+  
+  if ( y == "DiffRelBias" ) {
+    ylab = "Relative bias in estimated difference in proportions"
+    hline = 0
+  }
+  
+  if ( y == "CoverPhat" ) {
+    ylab = "95% CI coverage for estimated proportion above q"
+    hline = 0.95
+    yTicks = seq(0, 1, 0.1)
+  }
+  
+  if ( y == "CoverDiff" ) {
+    ylab = "95% CI coverage of estimated difference in proportions"
+    hline = 0.95
+    yTicks = seq(0, 1, 0.1)
+  }
+  
+ 
+  for ( x in categX ) {
+ 
+    # set up x-labels
+    if ( x == "k" ) xlab = "Number of studies (k)"
+    if ( x == "muN" ) xlab = "Average sample size (E[N])"
+    if ( x == "EstVar" ) xlab = "Estimated residual heterogeneity"
+    if ( x == "clustered.pretty" ) xlab = "Clustering of population effects"
+    if ( x == "true.effect.dist.pretty" ) xlab = "Distribution of population effects"
+    if ( x == "contrast" ) xlab = "Covariate contrast"
+    
+    my_violins( xName = x,
+                yName = y,
+                hline = hline,
+                xlab = xlab,
+                ylab = ylab,
+                yTicks = yTicks,
+                prefix = letters[alphaIndex] )
+    
+    cat( "\n Just finished", x, "vs", y, ", oh yeah" )
+    
+    alphaIndex = alphaIndex + 1
+    
+  }  # end loop over X
+  
+
+}  # end loop over Y
+
+
+
+
+
+# auto-generate figure strings for Overleaf
+setwd(figures.results.dir)
+
+for ( f in list.files() ){
+  
+  cat( "\\begin{figure}[H] \\centering \\includegraphics[width=100mm]{supp_figures/",
+       f,
+       "} \\end{figure}",
+       sep = "" )
+  
+  cat("\n\n")
+  
+}
+
+
+
+
 ################################## TABLES FOR PAPER, WITH RULES OF THUMB ##################################
 
 
@@ -205,18 +343,18 @@ agg4 = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "e
 selectVars = "Phat"
 
 t1 = rbind( my_summarise(dat = agg,
-                        description = "All reps",
-                        averagefn = averagefn),
-           
-           # **this one gives 0% chance of coverage<85%
-           my_summarise(dat = agg3,
-                        description = "Normal",
-                        averagefn = averagefn),
-           
-           # **this one gives 1% chance of coverage<85%
-           my_summarise(dat = agg4,
-                        description = "Not clustered expo",
-                        averagefn = averagefn) )  
+                         description = "All reps",
+                         averagefn = averagefn),
+            
+            # **this one gives 0% chance of coverage<85%
+            my_summarise(dat = agg3,
+                         description = "Normal",
+                         averagefn = averagefn),
+            
+            # **this one gives 1% chance of coverage<85%
+            my_summarise(dat = agg4,
+                         description = "Not clustered expo",
+                         averagefn = averagefn) )  
 
 View(t1)
 
@@ -271,7 +409,7 @@ t2 = rbind( my_summarise(dat = agg,
                          description = "Not BC-rare",
                          averagefn = averagefn),
             
-
+            
             my_summarise(dat = agg5,
                          description = "Not BC-rare nor clustered expo",
                          averagefn = averagefn)
@@ -358,3 +496,9 @@ t
 setwd(results.dir)
 setwd("Tables to prettify")
 fwrite(t, "supplement_meta_regression_corrections.csv")
+
+
+
+
+
+
