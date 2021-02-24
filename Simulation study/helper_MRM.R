@@ -1,6 +1,15 @@
 
 # audited the post-NPPhat parts 2020-6-17
 
+# contains fns for both running and analyzing sims because I think some smaller fns
+#  are shared
+# so don't separate this script into two
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                               FNS FOR ANALYSIS                                     #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
 
 make_s3_data = function(.s){
   
@@ -227,9 +236,10 @@ make_agg_data = function( .s3,
   expect_equal( TRUE,
                 all( names(s4) %in% c(param.vars, toDrop, firstOnly, takeMean) ) )
   
+
   if (.averagefn == "mean") avgfun = function(x) meanNA(x)
   if (.averagefn == "median") avgfun = function(x) medNA(x)
-  
+
   s4 = s4 %>%
     
     # take means of numeric variables
@@ -277,6 +287,18 @@ meanNA = function(x){
 # quick median with NAs removed
 medNA = function(x){
   median(x, na.rm = TRUE)
+}
+
+
+# quick median with NAs removed and 10th and 90th percentiles
+medNA_pctiles = function(x){
+  paste( round( median(x, na.rm = TRUE), 2 ),
+         " (",
+         round( quantile(x, probs = 0.10, na.rm = TRUE), 2 ),
+         ", ",
+         round( quantile(x, probs = 0.90, na.rm = TRUE), 2 ),
+         ")",
+         sep = "" )
 }
 
 
@@ -342,6 +364,7 @@ my_summarise = function(dat,
   
   if (averagefn == "mean") avgfun = function(x) meanNA(x)
   if (averagefn == "median") avgfun = function(x) medNA(x)
+  if (averagefn == "median.pctiles") avgfun = function(x) medNA_pctiles(x)
   
   # make a one-row summary
   tab = dat %>% 
@@ -355,7 +378,16 @@ my_summarise = function(dat,
   if (selectVars == "Phat") tab = tab %>% select(-BadDiffCover)
   if (selectVars == "Diff") tab = tab %>% select(-BadPhatCover)
   
-  tab = round( tab, 2 )
+  # only round selected columns if we have strings
+  #  (e.g., median with percentiles)
+  if ( averagefn == "median.pctiles" ){
+    
+    if (selectVars == "Phat") tab$BadPhatCover = round(tab$BadPhatCover, 2)
+    if (selectVars == "Diff") tab$BadDiffCover = round(tab$BadDiffCover, 2)
+    
+  } else {  # otherwise round all columns
+    tab = round( tab, 2 )
+  }
   
   tab = tab %>% add_column(n.scens = nrow(dat), .before = 1 )
   
@@ -363,8 +395,13 @@ my_summarise = function(dat,
   return(tab)
 }
 
-############################# FNS FOR BOOTSTRAPPING #############################
 
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                            FNS FOR SIMULATING                                     #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 ########################### FN: PHAT FOR META-REGRESSION ###########################
 

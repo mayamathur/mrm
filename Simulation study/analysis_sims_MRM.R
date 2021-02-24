@@ -28,7 +28,7 @@ s = fread("s3_dataset.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
-source("analysis_sims_helper_MRM.R")
+#source("analysis_sims_helper_MRM.R") # @OBSOLETE
 
 # takes about 5 min
 regressions.from.scratch = FALSE
@@ -429,9 +429,10 @@ overleaf_figure_strings()
 
 ################################## TABLES FOR PAPER, WITH RULES OF THUMB ##################################
 
+#bm
 
 # choose which average to take across scenarios ("median" or "mean")
-averagefn = "median"
+averagefn = "median.pctiles"
 
 
 ##### For Phat #####
@@ -473,6 +474,8 @@ keepers = c("Scenarios",
 setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t1 %>% select(keepers), "Phat_results_table.csv")
+
+View( t1 %>% select(keepers) )
 
 
 ##### For Diff #####
@@ -532,6 +535,7 @@ setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t2 %>% select(keepers), "diff_results_table.csv")
 
+View( t2 %>% select(keepers) )
 
 
 ###### All Metrics for All of the Filtered Datasets (Online Dataset) #####
