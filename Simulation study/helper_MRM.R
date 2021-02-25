@@ -13,7 +13,7 @@
 # for violin plots, set global parameters that my_violins() will use as arguments
 set_violin_params = function() {
   # set up y-labels and hline
-  if ( y == "PhatRelBias" ) {
+  if ( y == "PhatAbsBias" ) {
     aggData <<- aggPhat
     ylab <<- "Absolute bias in estimated proportion above q"
     hline <<- 0

@@ -134,8 +134,6 @@ View(t)
 
 ################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
 
-# same predictor variables as in violin plots
-obsVars = c("k", "muN", "clustered", "true.effect.dist", "contrast.extreme")
 
 outcomes = c("PhatRelBias",
              "PhatAbsBias",
@@ -154,6 +152,12 @@ if ( regressions.from.scratch == TRUE ) {
   
   # at scenario level rather than individual iterate level
   for (i in outcomes){
+    
+    # same predictor variables as in violin plots
+    # but don't use the contrast for Phat because it's not relevant
+    if ( grepl( x=i, pattern="Diff" ) ) obsVars = c("k", "muN", "clustered", "true.effect.dist", "contrast.extreme")
+    if ( grepl( x=i, pattern="Phat" ) ) obsVars = c("k", "muN", "clustered", "true.effect.dist")
+    
     string = paste( i, "~", paste(obsVars, collapse = "+"), sep="" )
     mod = lm( eval(parse(text=string)),
               data = s )
@@ -216,6 +220,9 @@ if ( regressions.from.scratch == TRUE ) {
   setwd("Tables to prettify")
   write.csv(res2, "performance_predictors.csv")
   
+  # also print as xtable for Overleaf
+  
+  print( xtable(res2), include.rownames = FALSE )
   
 }
 
@@ -240,7 +247,7 @@ if ( redo.violins == TRUE ) {
   system("rm *")
   
   setwd(figures.results.dir)
-  setwd("3. Good scenarios (stratified)")
+  setwd("3. All scenarios (stratified)")
   system("rm *")
   
   
@@ -343,22 +350,6 @@ overleaf_figure_strings()
 
 ##### 3. Violin Plots by Meta-Analysis Characteristics - All Scenarios #####
 
-#@temp only
-setwd(figures.results.dir)
-setwd("3. Good scenarios (stratified)")
-system("rm *")
-
-# @TEST
-myLetters = 1:200
-alphaIndex = 17
-
-# simplified list of categorical observed variables
-categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty", "contrast", "TheoryP")
-
-
-# total number of plots 
-length(outcomes) * length(categX)
-
 
 # pretty variable names for X-axis
 agg$true.effect.dist.pretty = dplyr::recode( agg$true.effect.dist,
@@ -374,7 +365,16 @@ for ( y in outcomes ) {
   
   yTicks = NA
   
+  # simplified list of categorical observed variables
+  # include contrast only if outcome is difference
+  if( grepl(x = y, pattern = "Diff")) categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty", "contrast")
+  
+  if( grepl(x = y, pattern = "Phat")) categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty")
+  
+  
   set_violin_params()
+  
+  
   
   for ( x in categX ) {
     
@@ -384,6 +384,8 @@ for ( y in outcomes ) {
     if ( x == "EstVar" ) xlab = "Estimated residual heterogeneity"
     if ( x == "clustered.pretty" ) xlab = "Clustering of population effects"
     if ( x == "true.effect.dist.pretty" ) xlab = "Distribution of population effects"
+    if ( x == "TheoryP" ) xlab = "True proportion"
+    if ( x == "TheoryDiff" ) xlab = "True difference"
     if ( x == "contrast" ) xlab = "Covariate contrast"
     
     my_violins( xName = x,
@@ -393,7 +395,7 @@ for ( y in outcomes ) {
                 ylab = ylab,
                 yTicks = yTicks,
                 prefix = myLetters[alphaIndex],
-                .results.dir = paste( figures.results.dir, "/3. Good scenarios (stratified)", sep = "" ) )
+                .results.dir = paste( figures.results.dir, "/3. All scenarios (stratified)", sep = "" ) )
     
     cat( "\n Just finished", x, "vs", y, ", oh yeah" )
     
@@ -406,7 +408,7 @@ for ( y in outcomes ) {
 
 
 # auto-generate figure strings for Overleaf
-setwd( paste( figures.results.dir, "/3. Good scenarios (stratified)", sep = "" ) )
+setwd( paste( figures.results.dir, "/3. All scenarios (stratified)", sep = "" ) )
 overleaf_figure_strings()
 
 
