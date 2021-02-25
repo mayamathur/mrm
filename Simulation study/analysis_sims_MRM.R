@@ -130,16 +130,24 @@ View(t)
 
 ################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
 
-# focus on observable variables within scenarios
-# i.e., estimates rather than parameters
-obsVars = c("k", "muN", "Phat", "PhatRef", "EstMean", "EstVar", "PhatBtFail", "calib.method.pretty",
-            # last two are only somewhat observed:
-            "true.effect.dist", "clustered")
+# same predictor variables as in violin plots
+obsVars = c("k", "muN", "clustered", "true.effect.dist", "contrast.extreme")
 
-outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
+outcomes = c("PhatRelBias",
+             "PhatAbsBias",
+             "CoverPhat",
+             "PhatCIWidth",
+             
+             "DiffAbsBias",
+             "DiffRelBias", 
+             "CoverDiff",
+             "DiffCIWidth")
 
-# takes about 5 min
+s$contrast.extreme = s$contrast == "BC-rare"
+
+# takes about 2-3 min
 if ( regressions.from.scratch == TRUE ) {
+  
   # at scenario level rather than individual iterate level
   for (i in outcomes){
     string = paste( i, "~", paste(obsVars, collapse = "+"), sep="" )
@@ -156,12 +164,12 @@ if ( regressions.from.scratch == TRUE ) {
     
     # which vars are good vs. bad for the outcome?
     # flip coeff signs so that positive means it improves the outcome
-    if ( grepl(pattern = "Bias", x = i) ) coefs = -coefs
+    if ( grepl(pattern = "Bias", x = i) | grepl(pattern = "Width", x = i) ) coefs = -coefs
     good = names( coefs[ coefs > 0 & pvals < 0.001 ] )
     bad = names( coefs[ coefs < 0 & pvals < 0.001 ] )
     
-    good = paste(good, collapse = ",")
-    bad = paste(bad, collapse = ",")
+    good = paste(good, collapse = ", ")
+    bad = paste(bad, collapse = ", ")
     
     newRow = data.frame( outcome = i,
                          good = good, 
@@ -173,31 +181,38 @@ if ( regressions.from.scratch == TRUE ) {
     print(summary(mod))
     
     
-    # best subsets
-    # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
-    library(rFSA)
-    string = paste( i, " ~ 1", sep="" )
-    keepers = c(obsVars, i)
-    mod2 = FSA( formula = eval( parse(text = string) ),
-                #data = s[1:1000,] %>% select(keepers),  # for testing
-                data = s %>% select(keepers),
-                cores = 8,
-                m = 2,  # order of interactions to try
-                interactions = FALSE,
-                criterion = AIC)
-    mod2
+  #   # best subsets
+  #   # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
+  #   library(rFSA)
+  #   string = paste( i, " ~ 1", sep="" )
+  #   keepers = c(obsVars, i)
+  #   mod2 = FSA( formula = eval( parse(text = string) ),
+  #               #data = s[1:1000,] %>% select(keepers),  # for testing
+  #               data = s %>% select(keepers),
+  #               cores = 8,
+  #               m = 2,  # order of interactions to try
+  #               interactions = FALSE,
+  #               criterion = AIC)
+  #   mod2
+  #   
+  #   if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
+  
     
-    if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
-  }
+  }  # end loop over outcomes
   
   
   # look at results
   res
+
+  # clean up string formatting
+  res2 = res %>% mutate_at( vars(good, bad), my_recode )
   
-  bestMod
-  
+  # write as csv
   setwd(results.dir)
-  write.csv(res, "performance_predictors.csv")
+  setwd("Tables to prettify")
+  write.csv(res2, "performance_predictors.csv")
+  
+  
 }
 
 
@@ -459,7 +474,6 @@ t1 = rbind( my_summarise(dat = agg,
                          description = "Not clustered expo",
                          averagefn = averagefn) )  
 
-View(t1)
 
 # save pretty table for paper
 keepers = c("Scenarios",
@@ -470,7 +484,8 @@ keepers = c("Scenarios",
             "EstMeanRelBias",
             "EstVarRelBias",
             "CoverPhat",
-            "BadPhatCover")
+            "BadPhatCover",
+            "PhatCIWidth")
 setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t1 %>% select(keepers), "Phat_results_table.csv")
@@ -530,7 +545,8 @@ keepers = c("Scenarios",
             "EstMeanRelBias",
             "EstVarRelBias",
             "CoverDiff",
-            "BadDiffCover")
+            "BadDiffCover",
+            "DiffCIWidth" )
 setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t2 %>% select(keepers), "diff_results_table.csv")
@@ -567,6 +583,49 @@ t3 = rbind( my_summarise(dat = agg,
 setwd(results.dir)
 write.csv(t3, "extended_performance_table.csv")
 
+
+
+################################## SPECIFICALLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
+
+#bm
+# like agg4, but with k<150
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn)
+res$BadPhatCover
+res$CoverPhat
+
+# compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn)
+res$BadPhatCover
+res$CoverPhat
+
+mean(temp$CoverPhat, na.rm = TRUE)
+
+# like agg5, but with k<150
+temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+                                     !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn)
+res$BadDiffCover
+res$CoverDiff
+
+
+################################## WHEN IS ABS BIAS BAD? ##################################
+
+
+
+#@clean up this section
+# recommended scens for Phat (not clustered expo)
+
+# look at scens with bad absolute bias
+View( my_summarise(dat = agg4 %>% filter( PhatAbsBias > .2 ),
+             description = "Not clustered expo",
+             averagefn = averagefn) )
+
+# these have coverage: 0.97 (0.92, 0.99)
+#  because CI basically becomes quite wide: 0.93 (0.83, 0.97)
+
+plot( agg$TheoryP, agg$PhatAbsBias)
 
 
 ################################## BIAS-CORRECT META-REGRESSION ESTIMATES IN WORST SCENARIOS ##################################

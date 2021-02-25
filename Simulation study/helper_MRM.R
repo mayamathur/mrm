@@ -355,7 +355,8 @@ my_summarise = function(dat,
   
   # variables whose average should be taken
   meanVars = c( namesWith(pattern = "Bias", dat = dat), 
-                namesWith(pattern = "Cover", dat = dat) )
+                namesWith(pattern = "Cover", dat = dat),
+                namesWith(pattern = "Width", dat = dat) )
   
   if (.selectVars == "Phat") meanVars = meanVars[ !grepl(pattern = "Diff", x = meanVars) ]
   
@@ -396,6 +397,15 @@ my_summarise = function(dat,
 }
 
 
+# for prettifying table of regression results
+my_recode = function(x) {
+  x = sub( pattern = "muN", replacement = "E[N]", x = x )
+  x = sub( pattern = "true.effect.distnormal", replacement = "normal effects", x = x )
+  x = sub( pattern = "clusteredTRUE", replacement = "clustered", x = x )
+  x = sub( pattern = "contrast.extremeTRUE", replacement = "BC-rare", x = x )
+  
+  return(x)
+}
 
 
 
