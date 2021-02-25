@@ -413,7 +413,7 @@ overleaf_figure_strings()
 
 
 
-################################## TABLES FOR PAPER, WITH RULES OF THUMB ##################################
+################################## TABLES 4-5 FOR PAPER, WITH RULES OF THUMB ##################################
 
 
 # choose which average to take across scenarios ("median" or "mean")
@@ -451,11 +451,14 @@ keepers = c("Scenarios",
             "PhatBias",
             "PhatAbsBias",
             "PhatRelBias",
+            
             "EstMeanRelBias",
             "EstVarRelBias",
+            
             "CoverPhat",
             "BadPhatCover",
-            "PhatCIWidth")
+            "PhatCIWidth",
+            "BadPhatWidth")
 setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t1 %>% select(keepers), "Phat_results_table.csv")
@@ -504,7 +507,7 @@ t2 = rbind( my_summarise(dat = agg,
                          description = "Not BC-rare nor clustered expo",
                          averagefn = averagefn)
 ) 
-View(t2)
+
 
 # save pretty table for paper
 keepers = c("Scenarios",
@@ -514,9 +517,11 @@ keepers = c("Scenarios",
             "DiffRelBias",
             "EstMeanRelBias",
             "EstVarRelBias",
+            
             "CoverDiff",
             "BadDiffCover",
-            "DiffCIWidth" )
+            "DiffCIWidth",
+            "BadDiffWidth")
 setwd(results.dir)
 setwd("Tables to prettify")
 write.csv(t2 %>% select(keepers), "diff_results_table.csv")
@@ -579,22 +584,85 @@ res$BadDiffCover
 res$CoverDiff
 
 
-################################## WHEN IS ABS BIAS BAD? ##################################
-
-
-
-#@clean up this section
-# recommended scens for Phat (not clustered expo)
+################################## SPECIFICALLY FOR RSM_3 RESPONSE LETTER: REL BIAS WHEN THEORYP ISN'T EXTREME ##################################
 
 # look at scens with bad absolute bias
-View( my_summarise(dat = agg4 %>% filter( PhatAbsBias > .2 ),
-             description = "Not clustered expo",
-             averagefn = averagefn) )
+# of recommended scenarios for Phat
 
-# these have coverage: 0.97 (0.92, 0.99)
-#  because CI basically becomes quite wide: 0.93 (0.83, 0.97)
 
-plot( agg$TheoryP, agg$PhatAbsBias)
+#### When Is CI Uninformatively Wide? #####
+# bm: thinking about this
+mean( aggPhat$PhatCIWidth > .95 )  # 4%
+mean( aggPhat$PhatCIWidth > .9 )  # 11%
+mean( aggPhat$PhatCIWidth > .8 )  # 20%
+mean( aggPhat$PhatCIWidth > .5 )  # 29%
+
+
+
+#### Bias When TheoryP r TheoryDiff >= 0.20 #####
+#bm: thinking about whether reviewer will be okay with this
+
+### Phat
+# no restrictions on CI width
+temp = my_summarise(dat = aggPhat %>% filter( TheoryP >= 0.2 ),
+                    description = "Not clustered expo",
+                    averagefn = averagefn)
+
+temp %>% select( "PhatRelBias", "PhatAbsBias" )
+
+# when CI is reasonably informative
+temp = my_summarise(dat = aggPhat %>% filter( TheoryP >= 0.2 & PhatCIWidth < .8 ),
+                   description = "Not clustered expo",
+                   averagefn = averagefn)
+
+temp %>% select( "PhatRelBias", "PhatAbsBias" )
+
+### Diff
+# no restrictions on CI width
+temp = my_summarise(dat = aggDiff %>% filter( TheoryP >= 0.2 ),
+                    description = "Not clustered expo",
+                    averagefn = averagefn)
+
+temp %>% select( "DiffRelBias", "DiffAbsBias" )
+
+# when CI is reasonably informative
+temp = my_summarise(dat = aggDiff %>% filter( TheoryP >= 0.2 & DiffCIWidth < .8 ),
+                    description = "Not clustered expo",
+                    averagefn = averagefn)
+
+temp %>% select( "DiffRelBias", "DiffAbsBias" )
+
+
+#### Look at the Worst 10% of Recommended Scenarios WRT Abs Bias #####
+
+### Phat
+( q90 = quantile( aggPhat$PhatAbsBias, 0.90 ) )
+
+tempAgg = aggPhat %>% filter( PhatAbsBias > q90 )
+
+tempRes = my_summarise(dat = tempAgg %>% filter( PhatAbsBias > q90 ),
+                    averagefn = averagefn)
+
+tempRes %>% select( "PhatAbsBias", "PhatCIWidth", "CoverPhat" )
+
+# what proportion of these scenarios had highly uninformative CIs?
+mean( tempAgg$PhatCIWidth > 0.9 )
+
+### Diff
+( q90 = quantile( aggDiff$DiffAbsBias, 0.90 ) )
+
+tempAgg = aggDiff %>% filter( DiffAbsBias > q90 )
+
+tempRes = my_summarise(dat = tempAgg %>% filter( DiffAbsBias > q90 ),
+                       averagefn = averagefn)
+
+tempRes %>% select( "DiffAbsBias", "DiffCIWidth", "CoverDiff" )
+
+# what proportion of these scenarios had highly uninformative CIs?
+mean( tempAgg$DiffCIWidth > 0.9 )
+
+
+
 
 
 ################################## BIAS-CORRECT META-REGRESSION ESTIMATES IN WORST SCENARIOS ##################################
