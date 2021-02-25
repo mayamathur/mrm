@@ -10,6 +10,201 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
+# for violin plots, set global parameters that my_violins() will use as arguments
+set_violin_params = function() {
+  # set up y-labels and hline
+  if ( y == "PhatRelBias" ) {
+    aggData <<- aggPhat
+    ylab <<- "Absolute bias in estimated proportion above q"
+    hline <<- 0
+    yTicks <<- seq(0, 1, .1)
+  }
+  
+  if ( y == "DiffAbsBias" ) {
+    aggData <<- aggDiff
+    ylab <<- "Absolute bias in estimated difference in proportions"
+    hline <<- 0
+    yTicks <<- seq(0, 1, .1)
+  }
+  
+  
+  if ( y == "PhatRelBias" ) {
+    aggData <<- aggPhat
+    ylab <<- "Relative bias in estimated proportion above q"
+    hline <<- 0
+    yTicks <<- seq(0, 5, .5)
+    
+    #cat("\\subsubsection{Relative bias in est prop}")
+  }
+  
+  if ( y == "DiffRelBias" ) {
+    aggData <<- aggDiff
+    ylab <<- "Relative bias in estimated difference in proportions"
+    hline <<- 0
+    yTicks <<- seq(0, 5, .5)
+  }
+  
+  if ( y == "CoverPhat" ) {
+    aggData <<- aggPhat
+    ylab <<- "95% CI coverage for estimated proportion above q"
+    hline <<- 0.95
+    yTicks <<- seq(0, 1, 0.1)
+  }
+  
+  if ( y == "CoverDiff" ) {
+    aggData <<- aggDiff
+    ylab <<- "95% CI coverage of estimated difference in proportions"
+    hline <<- 0.95
+    yTicks <<- seq(0, 1, 0.1)
+  }
+  
+  if ( y == "PhatCIWidth" ) {
+    aggData <<- aggPhat
+    ylab <<- "95% CI width for estimated proportion above q"
+    hline <<- NA
+    yTicks <<- seq(0, 1, 0.1)
+  }
+  
+  if ( y == "DiffCIWidth" ) {
+    aggData <<- aggDiff
+    ylab <<- "95% CI width for estimated difference in proportions"
+    hline <<- NA
+    yTicks <<- seq(0, 1, 0.1)
+  }
+}
+
+
+my_violins = function(xName = NA,
+                      yName,
+                      hline = NA,
+                      xlab = NA,
+                      ylab,
+                      yTicks = NA,
+                      prefix = NA,
+                      write = TRUE,
+                      .results.dir = figures.results.dir,
+                      # by default, use all scenarios:
+                      .agg = agg ) {
+
+  
+  .agg$Y = .agg[[yName]]
+  
+ 
+  # stratified plot (along x-axis)
+  if ( !is.na(xName) ) {
+    .agg$X = as.factor( .agg[[xName]] )
+    string = paste( "plot_", xName, "_vs_", yName, ".pdf", sep = "" )
+    
+    p = ggplot( data = .agg,
+                aes(x = X,
+                    y = Y) ) +
+      
+      geom_violin(fill = "orange",
+                  alpha = 0.4) +
+      
+      theme_classic() +
+      
+      theme(axis.title.x = element_text(size=16),
+            axis.title.y = element_text(size = 14),
+            axis.text.x = element_text(size=14),
+            axis.text.y = element_text(size=14)) +
+      
+      xlab(xlab)
+    
+  }
+  
+  # marginal plot (no x-axis)
+  if ( is.na(xName) ) {
+    
+    string = paste( "plot_marginal_", yName, ".pdf", sep = "" )
+    
+    p = ggplot( data = .agg,
+                aes(x = as.factor(1),
+                    y = Y) ) +
+      
+      geom_violin(fill = "orange",
+                  alpha = 0.4) +
+      
+      theme_classic() +
+      
+      theme(axis.title.x=element_blank(),
+            axis.text.x=element_blank(),
+            axis.ticks.x=element_blank(),
+            
+            axis.title.y = element_text(size = 14),
+            axis.text.y = element_text(size=14))
+  }
+  
+  
+  p  = p + geom_boxplot(width=0.1, fill = "white", outlier.shape = NA) +
+    scale_fill_brewer(palette="RdBu") +
+    ylab(ylab)
+  
+  if ( !is.na(hline) ) p = p + geom_hline(yintercept = hline,
+                                          lty = 2,
+                                          color = "gray")
+  
+  if ( any( !is.na(yTicks) ) ) p = p + scale_y_continuous( breaks = yTicks,
+                                                           limits = c( min(yTicks), max(yTicks) ) )
+  
+  
+  # save to local directory and Overleaf
+  if ( write == TRUE ) {
+    
+    if ( !is.na(prefix) ) string = paste( prefix, string, sep = "_" )
+    my_ggsave( name = string,
+               .results.dir = .results.dir,
+               .width = 8,
+               .height = 5)
+  } else {
+    p
+  }
+  
+}
+
+
+
+
+my_ggsave = function(name,
+                     .width,
+                     .height,
+                     .results.dir = figures.results.dir,
+                     .overleaf.dir = overleaf.dir) {
+  
+  for ( dir in c(.results.dir, .overleaf.dir) ) {
+    setwd(dir)
+    ggsave( name,
+            width = .width,
+            height = .height,
+            device = "pdf" )
+  }
+}
+
+
+# generate figure strings for whatever is the current working dir
+overleaf_figure_strings = function() {
+  #setwd(figures.results.dir)
+  
+  # order numbers correctly so that, e.g., 20 comes before 100
+  # https://stackoverflow.com/questions/10777367/how-can-i-read-the-files-in-a-directory-in-sorted-order-using-r
+  library(gtools)
+  files = mixedsort(list.files())
+
+  for ( f in files ){
+    
+    cat( "\\begin{figure}[H] \\centering \\includegraphics[width=110mm]{supp_figures_autogenerated/",
+         f,
+         "} \\end{figure}",
+         sep = "" )
+    
+    cat("\n\n")
+    
+  }
+  
+  cat( "\n\nTotal files: ", length(list.files() ) )
+}
+
+
 
 make_s3_data = function(.s){
   

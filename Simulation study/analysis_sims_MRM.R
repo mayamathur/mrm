@@ -9,6 +9,7 @@ library(xtable)
 library(data.table)
 library(tibble)
 library(testthat)
+library(ggplot2)
 
 options(scipen=999)
 
@@ -32,6 +33,9 @@ source("helper_MRM.R")
 
 # takes about 5 min
 regressions.from.scratch = FALSE
+
+# should we wipe all existing violin plots?
+redo.violins = FALSE
 
 
 
@@ -226,62 +230,71 @@ if ( regressions.from.scratch == TRUE ) {
 #  if you don't want to change the figure sizes or names, no need to copy-paste again
 
 # wipe existing files
-setwd(figures.results.dir)
-system("rm *")
-setwd(overleaf.dir)
-system("rm *")
+if ( redo.violins == TRUE ) {
+  setwd(figures.results.dir)
+  setwd("1. Good scenarios (marginal)")
+  system("rm *")
+  
+  setwd(figures.results.dir)
+  setwd("2. All scenarios (marginal)")
+  system("rm *")
+  
+  setwd(figures.results.dir)
+  setwd("3. Good scenarios (stratified)")
+  system("rm *")
+  
+  
+  setwd(overleaf.dir)
+  system("rm *")
+}
 
 
-##### Marginal Violin Plots - Scenarios Fulfilling Guidelines in Discussion #####
 
-agg5 = make_agg_data( s %>% filter(contrast != "BC-rare" &
+##### 1. Marginal Violin Plots - Scenarios Fulfilling Guidelines in Discussion #####
+
+# recommended scenarios for Phat
+aggPhat = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
+
+# recommended scenarios for Diff
+aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
                                      !(clustered == TRUE & true.effect.dist == "expo") ) )
 
-# put these in the order they should appear in manuscript
-outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff")
+
+
+# put these in the order the plots should appear in manuscript
+outcomes = c("PhatAbsBias",
+             "PhatRelBias",
+             "CoverPhat",
+             "PhatCIWidth",
+             
+             "DiffAbsBias",
+             "DiffRelBias",
+             "CoverDiff",
+             "DiffCIWidth")
+
+myLetters  = 1:200
 
 # this will be incremented so that each plot's title is prefaced
 #  by a letter to force the correct ordering
 alphaIndex = 1
 
+
+
 for ( y in outcomes ) {
   
   yTicks = NA
   
-  # set up y-labels and hline
-  if ( y == "PhatRelBias" ) {
-    ylab = "Relative bias in estimated proportion above q"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-    
-    #cat("\\subsubsection{Relative bias in est prop}")
-  }
-  
-  if ( y == "DiffRelBias" ) {
-    ylab = "Relative bias in estimated difference in proportions"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-  }
-  
-  if ( y == "CoverPhat" ) {
-    ylab = "95% CI coverage for estimated proportion above q"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
-  
-  if ( y == "CoverDiff" ) {
-    ylab = "95% CI coverage of estimated difference in proportions"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
+  # for violin plots, set global parameters that my_violins() will use as arguments
+  set_violin_params()
   
   my_violins( 
     yName = y,
     hline = hline,
     ylab = ylab,
     yTicks = yTicks,
-    prefix = paste( letters[alphaIndex], "goodScens", sep = "_" ),
-    .agg = agg5 )
+    prefix = paste( myLetters[alphaIndex], "goodScens", sep = "_" ),
+    .results.dir = paste( figures.results.dir, "/1. Good scenarios (marginal)", sep = "" ),
+    .agg = aggData )
   
   cat( "\n Just finished marginal", y, ", oh yeah" )
   
@@ -289,11 +302,13 @@ for ( y in outcomes ) {
   
 }  # end loop over Y
 
+
 # auto-generate figure strings for Overleaf
+setwd( paste( figures.results.dir, "/1. Good scenarios (marginal)", sep = "" ) )
 overleaf_figure_strings()
 
 
-##### Marginal Violin Plots - All Scenarios #####
+##### 2. Marginal Violin Plots - All Scenarios #####
 
 # this will be incremented so that each plot's title is prefaced
 #  by a letter to force the correct ordering
@@ -302,39 +317,15 @@ for ( y in outcomes ) {
   
   yTicks = NA
   
-  # set up y-labels and hline
-  if ( y == "PhatRelBias" ) {
-    ylab = "Relative bias in estimated proportion above q"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-    
-    #cat("\\subsubsection{Relative bias in est prop}")
-  }
-  
-  if ( y == "DiffRelBias" ) {
-    ylab = "Relative bias in estimated difference in proportions"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-  }
-  
-  if ( y == "CoverPhat" ) {
-    ylab = "95% CI coverage for estimated proportion above q"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
-  
-  if ( y == "CoverDiff" ) {
-    ylab = "95% CI coverage of estimated difference in proportions"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
+  set_violin_params()
   
   my_violins( 
               yName = y,
               hline = hline,
               ylab = ylab,
               yTicks = yTicks,
-              prefix = letters[alphaIndex] )
+              prefix = myLetters[alphaIndex],
+              .results.dir = paste( figures.results.dir, "/2. All scenarios (marginal)", sep = "" ) )
   
   cat( "\n Just finished marginal", y, ", oh yeah" )
   
@@ -345,16 +336,25 @@ for ( y in outcomes ) {
 
 
 # auto-generate figure strings for Overleaf
+setwd( paste( figures.results.dir, "/2. All scenarios (marginal)", sep = "" ) )
 overleaf_figure_strings()
 
 
 
-##### Violin Plots by Meta-Analysis Characteristics - All Scenarios #####
+##### 3. Violin Plots by Meta-Analysis Characteristics - All Scenarios #####
 
+#@temp only
+setwd(figures.results.dir)
+setwd("3. Good scenarios (stratified)")
+system("rm *")
+
+# @TEST
+myLetters = 1:200
+alphaIndex = 17
 
 # simplified list of categorical observed variables
 categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty", "contrast", "TheoryP")
-# also Phat, but it's continuous
+
 
 # total number of plots 
 length(outcomes) * length(categX)
@@ -370,46 +370,11 @@ agg$clustered.pretty = dplyr::recode( agg$clustered,
                                       `1` = "Clustered")
 
 
-# #bm
-# my_violins( xName = "k",
-#             yName = "PhatRelBias",
-#             hline = 0,
-#             xlab = "X",
-#             ylab = "Y",
-#             yTicks = seq(0,1,.1),
-#             prefix = LETTERS[3])
-
-
 for ( y in outcomes ) {
   
   yTicks = NA
   
-  # set up y-labels and hline
-  if ( y == "PhatRelBias" ) {
-    ylab = "Relative bias in estimated proportion above q"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-    
-  }
-  
-  if ( y == "DiffRelBias" ) {
-    ylab = "Relative bias in estimated difference in proportions"
-    hline = 0
-    yTicks = seq(0, 5, .5)
-  }
-  
-  if ( y == "CoverPhat" ) {
-    ylab = "95% CI coverage for estimated proportion above q"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
-  
-  if ( y == "CoverDiff" ) {
-    ylab = "95% CI coverage of estimated difference in proportions"
-    hline = 0.95
-    yTicks = seq(0, 1, 0.1)
-  }
-  
+  set_violin_params()
   
   for ( x in categX ) {
     
@@ -427,7 +392,8 @@ for ( y in outcomes ) {
                 xlab = xlab,
                 ylab = ylab,
                 yTicks = yTicks,
-                prefix = letters[alphaIndex] )
+                prefix = myLetters[alphaIndex],
+                .results.dir = paste( figures.results.dir, "/3. Good scenarios (stratified)", sep = "" ) )
     
     cat( "\n Just finished", x, "vs", y, ", oh yeah" )
     
@@ -440,11 +406,13 @@ for ( y in outcomes ) {
 
 
 # auto-generate figure strings for Overleaf
+setwd( paste( figures.results.dir, "/3. Good scenarios (stratified)", sep = "" ) )
 overleaf_figure_strings()
+
+
 
 ################################## TABLES FOR PAPER, WITH RULES OF THUMB ##################################
 
-#bm
 
 # choose which average to take across scenarios ("median" or "mean")
 averagefn = "median.pctiles"
@@ -587,7 +555,6 @@ write.csv(t3, "extended_performance_table.csv")
 
 ################################## SPECIFICALLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
 
-#bm
 # like agg4, but with k<150
 temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
 res = my_summarise(dat = temp, averagefn = averagefn)
