@@ -132,8 +132,7 @@ View(t)
 
 
 
-################################## REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
-
+################################## SUPPLEMENT TABLE: REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
 
 outcomes = c("PhatRelBias",
              "PhatAbsBias",
@@ -415,8 +414,8 @@ overleaf_figure_strings()
 
 ################################## TABLES 4-5 FOR PAPER, WITH RULES OF THUMB ##################################
 
-
-# choose which average to take across scenarios ("median" or "mean")
+# choose which average to take across scenarios ("median", "mean", "median.pctiles")
+# with 10th and 90th percentiles
 averagefn = "median.pctiles"
 
 
@@ -425,8 +424,8 @@ averagefn = "median.pctiles"
 # make filtered dfs (will form rows of table)
 agg2 = make_agg_data( s %>% filter(contrast != "BC-rare") )
 agg3 = make_agg_data( s %>% filter(true.effect.dist == "normal") )
-# excluding only clustered expo is same as excluding all clustered
-agg4 = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
+# recommended scenarios: excluding only clustered expo is same as excluding all clustered
+aggPhat = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
 
 selectVars = "Phat"
 
@@ -440,7 +439,7 @@ t1 = rbind( my_summarise(dat = agg,
                          averagefn = averagefn),
             
             # **this one gives 1% chance of coverage<85%
-            my_summarise(dat = agg4,
+            my_summarise(dat = aggPhat,
                          description = "Not clustered expo",
                          averagefn = averagefn) )  
 
@@ -468,11 +467,12 @@ View( t1 %>% select(keepers) )
 
 ##### For Diff #####
 
-agg5 = make_agg_data( s %>% filter(contrast != "BC-rare" &
+# recommended scenarios for diff
+aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
                                      !(clustered == TRUE & true.effect.dist == "expo") ) )
 
 # tried but not useful:
-#agg5 = make_agg_data( s %>% filter(contrast != "BC-rare" & k>=100 ) )
+#aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" & k>=100 ) )
 
 # agg6 = make_agg_data(s %>% filter(k >= 100) )
 # 
@@ -503,7 +503,7 @@ t2 = rbind( my_summarise(dat = agg,
                          averagefn = averagefn),
             
             
-            my_summarise(dat = agg5,
+            my_summarise(dat = aggDiff,
                          description = "Not BC-rare nor clustered expo",
                          averagefn = averagefn)
 ) 
@@ -546,11 +546,11 @@ t3 = rbind( my_summarise(dat = agg,
                          description = "Normal",
                          averagefn = averagefn),
             
-            my_summarise(dat = agg4,
+            my_summarise(dat = aggPhat,
                          description = "Not clustered expo",
                          averagefn = averagefn),
             
-            my_summarise(dat = agg5,
+            my_summarise(dat = aggDiff,
                          description = "No BC-rare/not clustered expo",
                          averagefn = averagefn) ) 
 
@@ -560,88 +560,64 @@ write.csv(t3, "extended_performance_table.csv")
 
 
 
-################################## SPECIFICALLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
+################################## ONLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
 
-# like agg4, but with k<150
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn)
+# not in text
+
+##### Phat #####
+# like aggPhat, but with k<150: still 1% with bad coverage
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 res$BadPhatCover
 res$CoverPhat
 
-# compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn)
-res$BadPhatCover
-res$CoverPhat
+# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn)
+# res$BadPhatCover
+# res$CoverPhat
 
-mean(temp$CoverPhat, na.rm = TRUE)
 
-# like agg5, but with k<150
+##### Diff #####
+# like aggDiff, but with k<150
 temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
                                      !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn)
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
 res$BadDiffCover
 res$CoverDiff
 
 
-################################## SPECIFICALLY FOR RSM_3 RESPONSE LETTER: REL BIAS WHEN THEORYP ISN'T EXTREME ##################################
-
-# look at scens with bad absolute bias
-# of recommended scenarios for Phat
-
-
-#### When Is CI Uninformatively Wide? #####
-# bm: thinking about this
-mean( aggPhat$PhatCIWidth > .95 )  # 4%
-mean( aggPhat$PhatCIWidth > .9 )  # 11%
-mean( aggPhat$PhatCIWidth > .8 )  # 20%
-mean( aggPhat$PhatCIWidth > .5 )  # 29%
-
-
-
-#### Bias When TheoryP r TheoryDiff >= 0.20 #####
-#bm: thinking about whether reviewer will be okay with this
+################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################
 
 ### Phat
-# no restrictions on CI width
-temp = my_summarise(dat = aggPhat %>% filter( TheoryP >= 0.2 ),
-                    description = "Not clustered expo",
-                    averagefn = averagefn)
+# all scenarios
+temp = my_summarise(dat = agg %>% filter( TheoryP >= 0.2 ),
+                    averagefn = averagefn,
+                    .selectVars = "Phat")
 
 temp %>% select( "PhatRelBias", "PhatAbsBias" )
 
-# when CI is reasonably informative
-temp = my_summarise(dat = aggPhat %>% filter( TheoryP >= 0.2 & PhatCIWidth < .8 ),
-                   description = "Not clustered expo",
-                   averagefn = averagefn)
-
-temp %>% select( "PhatRelBias", "PhatAbsBias" )
 
 ### Diff
-# no restrictions on CI width
-temp = my_summarise(dat = aggDiff %>% filter( TheoryP >= 0.2 ),
-                    description = "Not clustered expo",
-                    averagefn = averagefn)
-
-temp %>% select( "DiffRelBias", "DiffAbsBias" )
-
-# when CI is reasonably informative
-temp = my_summarise(dat = aggDiff %>% filter( TheoryP >= 0.2 & DiffCIWidth < .8 ),
-                    description = "Not clustered expo",
+# all scenarios
+temp = my_summarise(dat = agg %>% filter( TheoryDiff >= 0.2 ),
+                    .selectVars = "Diff",
                     averagefn = averagefn)
 
 temp %>% select( "DiffRelBias", "DiffAbsBias" )
 
 
-#### Look at the Worst 10% of Recommended Scenarios WRT Abs Bias #####
+#### Look at the Worst 10% of Recommended Scenarios WRT Abs and Rel Bias #####
 
 ### Phat
+# use only recommended scenarios that had absolute bias in worst 10%
 ( q90 = quantile( aggPhat$PhatAbsBias, 0.90 ) )
 
 tempAgg = aggPhat %>% filter( PhatAbsBias > q90 )
 
-tempRes = my_summarise(dat = tempAgg %>% filter( PhatAbsBias > q90 ),
-                    averagefn = averagefn)
+tempRes = my_summarise(dat = tempAgg,
+                    averagefn = averagefn,
+                    .selectVars = "Phat")
 
 tempRes %>% select( "PhatAbsBias", "PhatCIWidth", "CoverPhat" )
 
@@ -649,18 +625,19 @@ tempRes %>% select( "PhatAbsBias", "PhatCIWidth", "CoverPhat" )
 mean( tempAgg$PhatCIWidth > 0.9 )
 
 ### Diff
+# use only recommended scenarios
 ( q90 = quantile( aggDiff$DiffAbsBias, 0.90 ) )
 
 tempAgg = aggDiff %>% filter( DiffAbsBias > q90 )
 
-tempRes = my_summarise(dat = tempAgg %>% filter( DiffAbsBias > q90 ),
-                       averagefn = averagefn)
+tempRes = my_summarise(dat = tempAgg,
+                       averagefn = averagefn,
+                       .selectVars = "Diff")
 
 tempRes %>% select( "DiffAbsBias", "DiffCIWidth", "CoverDiff" )
 
 # what proportion of these scenarios had highly uninformative CIs?
 mean( tempAgg$DiffCIWidth > 0.9 )
-
 
 
 

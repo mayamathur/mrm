@@ -567,30 +567,29 @@ my_summarise = function(dat,
   tab = dat %>% 
     summarise_at( .vars = meanVars, 
                   function(x) avgfun(x) )
-  
-  
+
   # proportion of SCENARIOS with bad MEAN coverage
   tab = tab %>% add_column(BadPhatCover = mean(dat$CoverPhat < badCoverageCutoff),
                            BadDiffCover = mean(dat$CoverDiff < badCoverageCutoff))
-  if (selectVars == "Phat") tab = tab %>% select(-BadDiffCover)
-  if (selectVars == "Diff") tab = tab %>% select(-BadPhatCover)
+  if (.selectVars == "Phat") tab = tab %>% select(-BadDiffCover)
+  if (.selectVars == "Diff") tab = tab %>% select(-BadPhatCover)
   
   # proportion of SCENARIOS with bad median CI width
   tab = tab %>% add_column(BadPhatWidth = mean(dat$PhatCIWidth > badWidthCutoff),
                            BadDiffWidth = mean(dat$DiffCIWidth > badWidthCutoff) )
-  if (selectVars == "Phat") tab = tab %>% select(-BadDiffWidth)
-  if (selectVars == "Diff") tab = tab %>% select(-BadPhatWidth)
+  if (.selectVars == "Phat") tab = tab %>% select(-BadDiffWidth)
+  if (.selectVars == "Diff") tab = tab %>% select(-BadPhatWidth)
   
   # only round selected columns if we have strings
   #  (e.g., median with percentiles)
   if ( averagefn == "median.pctiles" ){
     
-    if (selectVars == "Phat"){
+    if (.selectVars == "Phat"){
       tab$BadPhatCover = round(tab$BadPhatCover, 2)
       tab$BadPhatWidth = round(tab$BadPhatWidth, 2)
     }
     
-    if (selectVars == "Diff"){
+    if (.selectVars == "Diff"){
       tab$BadDiffCover = round(tab$BadDiffCover, 2)
       tab$BadDiffWidth = round(tab$BadDiffWidth, 2)
     } 
