@@ -4,6 +4,10 @@
 
 rm(list=ls())
 
+library(renv)
+# renv::snapshot()
+# renv::restore()
+
 library(dplyr)
 library(xtable)
 library(data.table)
@@ -562,11 +566,12 @@ write.csv(t3, "extended_performance_table.csv")
 
 ################################## ONLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
 
+
 # not in text
 
 ##### Phat #####
 # like aggPhat, but with k<150: still 1% with bad coverage
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 150 ) )
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
 res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 res$BadPhatCover
 res$CoverPhat
@@ -585,6 +590,37 @@ temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
 res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
 res$BadDiffCover
 res$CoverDiff
+
+
+################################## ONLY FOR RSM_4 RESPONSE LETTER: CI WIDTH WHEN K<50 ##################################
+
+# these are in text (in-line)
+
+##### Phat #####
+# like aggPhat, but with k<150: still 1% with bad coverage
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
+res$BadPhatCover
+res$CoverPhat
+res$PhatCIWidth
+res$BadPhatWidth
+
+# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn)
+# res$BadPhatCover
+# res$CoverPhat
+
+
+##### Diff #####
+# like aggDiff, but with k<150
+temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+                                      !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
+res$BadDiffCover
+res$CoverDiff
+res$DiffCIWidth
+res$BadDiffWidth
 
 
 ################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################
