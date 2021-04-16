@@ -253,6 +253,10 @@ if ( redo.violins == TRUE ) {
   setwd("3. All scenarios (stratified)")
   system("rm *")
   
+  setwd(figures.results.dir)
+  setwd("4. Good scenarios (stratified by k)")
+  system("rm *")
+  
   
   setwd(overleaf.dir)
   system("rm *")
@@ -272,23 +276,25 @@ aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
 
 
 # put these in the order the plots should appear in manuscript
-outcomes = c("PhatAbsErr",
-             "PhatRelBias",
+outcomes = c("PhatBias",
+             "PhatAbsErr",
              "CoverPhat",
              "PhatCIWidth",
              
+             "DiffBias",
              "DiffAbsErr",
-             "DiffRelBias",
              "CoverDiff",
              "DiffCIWidth")
 
+# for ordering files
 myLetters  = 1:200
 
 # this will be incremented so that each plot's title is prefaced
 #  by a letter to force the correct ordering
 alphaIndex = 1
 
-
+# to avoid subsequent error about "cannot change value of locked binding for 'ylab'"
+ylab = NULL
 
 for ( y in outcomes ) {
   
@@ -353,7 +359,6 @@ overleaf_figure_strings()
 
 ##### 3. Violin Plots by Meta-Analysis Characteristics - All Scenarios #####
 
-
 # pretty variable names for X-axis
 agg$true.effect.dist.pretty = dplyr::recode( agg$true.effect.dist,
                                              expo = "Exponential",
@@ -413,6 +418,53 @@ for ( y in outcomes ) {
 # auto-generate figure strings for Overleaf
 setwd( paste( figures.results.dir, "/3. All scenarios (stratified)", sep = "" ) )
 overleaf_figure_strings()
+
+
+##### 4. (Main Text) Violin Plots by k Only - Good Scenarios #####
+
+
+# start index over because these are going in main text
+# start at 4 because we already have figures 1-3
+index = 4
+
+for ( y in outcomes ) {
+  
+  yTicks = NA
+  
+  # simplified list of categorical observed variables
+  # include contrast only if outcome is difference
+  if( grepl(x = y, pattern = "Diff")) categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty", "contrast")
+  
+  if( grepl(x = y, pattern = "Phat")) categX = c("k", "muN", "clustered.pretty", "true.effect.dist.pretty")
+  
+  
+  set_violin_params()
+  
+  
+xlab = "Number of studies (k)"
+ 
+    my_violins( xName = "k",
+                yName = y,
+                hline = hline,
+                xlab = xlab,
+                ylab = ylab,
+                yTicks = yTicks,
+                prefix = paste("Fig", index),
+                .results.dir = paste( figures.results.dir, "/4. Good scenarios (stratified by k)", sep = "" ) )
+    
+    cat( "\n Just finished", x, "vs", y, ", oh yeah" )
+    
+    index = index + 1
+    
+ 
+}  # end loop over Y
+
+
+# # auto-generate figure strings for Overleaf
+# setwd( paste( figures.results.dir, "/4. Good scenarios (stratified by k)", sep = "" ) )
+# overleaf_figure_strings()
+
+
 
 
 

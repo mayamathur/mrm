@@ -15,33 +15,33 @@ set_violin_params = function() {
   # set up y-labels and hline
   if ( y == "PhatAbsErr" ) {
     aggData <<- aggPhat
-    ylab <<- "MAE in estimated proportion above q"
+    ylab <<- "Absolute error in estimated proportion above q"
     hline <<- 0
     yTicks <<- seq(0, 1, .1)
   }
   
   if ( y == "DiffAbsErr" ) {
     aggData <<- aggDiff
-    ylab <<- "MAE in estimated difference in proportions"
+    ylab <<- "Absolute error in estimated difference in proportions"
     hline <<- 0
     yTicks <<- seq(0, 1, .1)
   }
   
   
-  if ( y == "PhatRelBias" ) {
+  if ( y == "PhatBias" ) {
     aggData <<- aggPhat
-    ylab <<- "Relative bias in estimated proportion above q"
+    ylab <<- "Bias in estimated proportion above q"
     hline <<- 0
-    yTicks <<- seq(0, 5, .5)
+    yTicks <<- seq(-0.5, .5, .1)
     
     #cat("\\subsubsection{Relative bias in est prop}")
   }
   
-  if ( y == "DiffRelBias" ) {
+  if ( y == "DiffBias" ) {
     aggData <<- aggDiff
-    ylab <<- "Relative bias in estimated difference in proportions"
+    ylab <<- "Bias in estimated difference in proportions"
     hline <<- 0
-    yTicks <<- seq(0, 5, .5)
+    yTicks <<- seq(-0.5, .5, .1)
   }
   
   if ( y == "CoverPhat" ) {
