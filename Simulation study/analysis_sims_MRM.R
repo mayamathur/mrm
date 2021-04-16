@@ -475,7 +475,7 @@ xlab = "Number of studies (k)"
 averagefn = "median.pctiles"
 
 
-##### For Phat #####
+##### Table 4: Phat #####
 
 # make filtered dfs (will form rows of table)
 agg2 = make_agg_data( s %>% filter(contrast != "BC-rare") )
@@ -521,7 +521,7 @@ write.csv(t1 %>% select(keepers), "Phat_results_table.csv")
 View( t1 %>% select(keepers) )
 
 
-##### For Diff #####
+##### Table 5: Diff #####
 
 # recommended scenarios for diff
 aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
@@ -673,6 +673,55 @@ res$BadDiffCover
 res$CoverDiff
 res$DiffCIWidth
 res$BadDiffWidth
+
+
+################################## ONLY FOR RSM_5 RESPONSE LETTER: COVERAGE WHEN K=150 ##################################
+
+##### Phat #####
+# like aggPhat, but with k=150: still 1% with bad coverage
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
+res$BadPhatCover
+res$CoverPhat
+
+# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn)
+# res$BadPhatCover
+# res$CoverPhat
+
+
+##### Diff #####
+# like aggDiff, but with k<150
+temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+                                      !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
+res$BadDiffCover
+res$CoverDiff
+
+
+################################## ONLY FOR RSM_5 RESPONSE LETTER: MIN/MAX ISSUE ##################################
+
+# compare max bias to standard estimators
+
+min(aggPhat$PhatBias)
+max(aggPhat$PhatBias)
+
+max(aggPhat$PhatRelBias)
+max(aggPhat$EstMeanRelBias)
+max(aggPhat$EstVarRelBias)
+
+temp = aggPhat[ which.max(aggPhat$PhatRelBias), ]
+temp$Phat
+temp$TheoryP
+temp$EstVar
+temp$TrueVar
+
+min(aggDiff$DiffBias)
+max(aggDiff$DiffBias)
+
+max(aggDiff$DiffRelBias)
+max(aggDiff$EstVarRelBias)
 
 
 ################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################

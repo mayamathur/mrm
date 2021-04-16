@@ -246,6 +246,7 @@ make_s3_data = function(.s){
       
       # diagnostics
       EstMeanAbsErr = abs(EstMean - TrueMean),
+      # not taking abs value in denom here because TrueMean > 0 always
       EstMeanRelBias = EstMeanAbsErr / TrueMean,
       
       EstVarAbsErr = abs(EstVar - TrueVar),
@@ -554,6 +555,7 @@ my_summarise = function(dat,
   
   # variables whose average should be taken
   meanVars = c( namesWith(pattern = "Bias", dat = dat), 
+                namesWith(pattern = "AbsErr", dat = dat),
                 namesWith(pattern = "Cover", dat = dat),
                 namesWith(pattern = "Width", dat = dat) )
   
