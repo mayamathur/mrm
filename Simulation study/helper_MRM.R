@@ -238,6 +238,7 @@ make_s3_data = function(.s){
       Diff2AbsBias = abs(Diff2 - TheoryDiff),
       
       # @note that these are relative ABSOLUTE bias
+      #bm
       PhatRelBias = PhatAbsBias/TheoryP,
       Phat2RelBias = Phat2AbsBias/TheoryP,
       LogitPhat2RelBias = LogitPhat2AbsBias/TheoryP,
@@ -271,7 +272,7 @@ make_s3_data = function(.s){
 
 # fn for aggregating so we can look at different
 #  iterate-level filtering rules
-# .s: the iterate-level stitched data
+# .s: the iterate-level stitched data (not yet aggregated in any way)
 make_agg_data = function( .s3,
                           .averagefn = "mean"){
   
