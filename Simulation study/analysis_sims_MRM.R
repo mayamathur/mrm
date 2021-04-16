@@ -1,5 +1,6 @@
 
 
+
 ################################## PRELIMINARIES ##################################
 
 rm(list=ls())
@@ -14,6 +15,7 @@ library(data.table)
 library(tibble)
 library(testthat)
 library(ggplot2)
+library(sandwich)
 
 options(scipen=999)
 
@@ -33,13 +35,12 @@ s = fread("s3_dataset.csv")
 
 setwd(code.dir)
 source("helper_MRM.R")
-#source("analysis_sims_helper_MRM.R") # @OBSOLETE
 
 # takes about 5 min
-regressions.from.scratch = FALSE
+regressions.from.scratch = TRUE
 
 # should we wipe all existing violin plots?
-redo.violins = FALSE
+redo.violins = TRUE
 
 
 
@@ -138,13 +139,13 @@ View(t)
 
 ################################## SUPPLEMENT TABLE: REGRESS PERFORMANCE METRICS ON OBSERVED STATS ##################################
 
-outcomes = c("PhatRelBias",
-             "PhatAbsBias",
+# regressions are fit at iterate level, so can't use abs bias here
+#  since it's only defined at scenario level
+outcomes = c("PhatAbsErr",
              "CoverPhat",
              "PhatCIWidth",
              
-             "DiffAbsBias",
-             "DiffRelBias", 
+             "DiffAbsErr",
              "CoverDiff",
              "DiffCIWidth")
 
@@ -165,7 +166,6 @@ if ( regressions.from.scratch == TRUE ) {
     mod = lm( eval(parse(text=string)),
               data = s )
     
-    library(sandwich)
     SEs = diag( vcovCL(mod, type="HC0", cluster = ~ scen.name) )
     SEs = SEs[ !names(SEs) == "(Intercept)" ]
     
@@ -175,7 +175,7 @@ if ( regressions.from.scratch == TRUE ) {
     
     # which vars are good vs. bad for the outcome?
     # flip coeff signs so that positive means it improves the outcome
-    if ( grepl(pattern = "Bias", x = i) | grepl(pattern = "Width", x = i) ) coefs = -coefs
+    if ( grepl(pattern = "AbsErr", x = i) | grepl(pattern = "Width", x = i) ) coefs = -coefs
     good = names( coefs[ coefs > 0 & pvals < 0.001 ] )
     bad = names( coefs[ coefs < 0 & pvals < 0.001 ] )
     
@@ -272,12 +272,12 @@ aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
 
 
 # put these in the order the plots should appear in manuscript
-outcomes = c("PhatAbsBias",
+outcomes = c("PhatAbsErr",
              "PhatRelBias",
              "CoverPhat",
              "PhatCIWidth",
              
-             "DiffAbsBias",
+             "DiffAbsErr",
              "DiffRelBias",
              "CoverDiff",
              "DiffCIWidth")
@@ -452,7 +452,7 @@ t1 = rbind( my_summarise(dat = agg,
 keepers = c("Scenarios",
             "n.scens", 
             "PhatBias",
-            "PhatAbsBias",
+            "PhatAbsErr",
             "PhatRelBias",
             
             "EstMeanRelBias",
@@ -517,7 +517,7 @@ t2 = rbind( my_summarise(dat = agg,
 keepers = c("Scenarios",
             "n.scens", 
             "DiffBias",
-            "DiffAbsBias",
+            "DiffAbsErr",
             "DiffRelBias",
             "EstMeanRelBias",
             "EstVarRelBias",
@@ -631,7 +631,7 @@ temp = my_summarise(dat = agg %>% filter( TheoryP >= 0.2 ),
                     averagefn = averagefn,
                     .selectVars = "Phat")
 
-temp %>% select( "PhatRelBias", "PhatAbsBias" )
+temp %>% select( "PhatRelBias", "PhatAbsErr" )
 
 
 ### Diff
@@ -640,37 +640,37 @@ temp = my_summarise(dat = agg %>% filter( TheoryDiff >= 0.2 ),
                     .selectVars = "Diff",
                     averagefn = averagefn)
 
-temp %>% select( "DiffRelBias", "DiffAbsBias" )
+temp %>% select( "DiffRelBias", "DiffAbsErr" )
 
 
 #### Look at the Worst 10% of Recommended Scenarios WRT Abs and Rel Bias #####
 
 ### Phat
 # use only recommended scenarios that had absolute bias in worst 10%
-( q90 = quantile( aggPhat$PhatAbsBias, 0.90 ) )
+( q90 = quantile( aggPhat$PhatAbsErr, 0.90 ) )
 
-tempAgg = aggPhat %>% filter( PhatAbsBias > q90 )
+tempAgg = aggPhat %>% filter( PhatAbsErr > q90 )
 
 tempRes = my_summarise(dat = tempAgg,
                     averagefn = averagefn,
                     .selectVars = "Phat")
 
-tempRes %>% select( "PhatAbsBias", "PhatCIWidth", "CoverPhat" )
+tempRes %>% select( "PhatAbsErr", "PhatCIWidth", "CoverPhat" )
 
 # what proportion of these scenarios had highly uninformative CIs?
 mean( tempAgg$PhatCIWidth > 0.9 )
 
 ### Diff
 # use only recommended scenarios
-( q90 = quantile( aggDiff$DiffAbsBias, 0.90 ) )
+( q90 = quantile( aggDiff$DiffAbsErr, 0.90 ) )
 
-tempAgg = aggDiff %>% filter( DiffAbsBias > q90 )
+tempAgg = aggDiff %>% filter( DiffAbsErr > q90 )
 
 tempRes = my_summarise(dat = tempAgg,
                        averagefn = averagefn,
                        .selectVars = "Diff")
 
-tempRes %>% select( "DiffAbsBias", "DiffCIWidth", "CoverDiff" )
+tempRes %>% select( "DiffAbsErr", "DiffCIWidth", "CoverDiff" )
 
 # what proportion of these scenarios had highly uninformative CIs?
 mean( tempAgg$DiffCIWidth > 0.9 )
@@ -703,7 +703,7 @@ t = data.frame( rbind( my_summarise(dat = aggb %>% filter(calib.method == "MR"),
                        my_summarise(dat = aggb %>% filter(calib.method == "params"),
                                     description = "params") ) )
 
-t = t %>% select("Scenarios", "PhatBias", "PhatAbsBias",  "PhatRelBias", "DiffBias", "DiffAbsBias", "DiffRelBias")
+t = t %>% select("Scenarios", "PhatBias", "PhatAbsErr",  "PhatRelBias", "DiffBias", "DiffAbsErr", "DiffRelBias")
 t
 
 # yes, the bias corrections make the bias worse...

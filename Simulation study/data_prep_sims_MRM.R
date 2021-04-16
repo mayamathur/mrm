@@ -57,6 +57,7 @@ fwrite(s3, "s3_dataset.csv")
 agg = make_agg_data(s3)
 nrow(agg)  # would be 1600*3 if there were no simulation failures at the scenario level
 
+
 setwd(prepped.data.dir)
 fwrite(agg, "*agg_dataset.csv")
 

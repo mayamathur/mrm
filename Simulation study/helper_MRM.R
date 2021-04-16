@@ -13,16 +13,16 @@
 # for violin plots, set global parameters that my_violins() will use as arguments
 set_violin_params = function() {
   # set up y-labels and hline
-  if ( y == "PhatAbsBias" ) {
+  if ( y == "PhatAbsErr" ) {
     aggData <<- aggPhat
-    ylab <<- "Absolute bias in estimated proportion above q"
+    ylab <<- "MAE in estimated proportion above q"
     hline <<- 0
     yTicks <<- seq(0, 1, .1)
   }
   
-  if ( y == "DiffAbsBias" ) {
+  if ( y == "DiffAbsErr" ) {
     aggData <<- aggDiff
-    ylab <<- "Absolute bias in estimated difference in proportions"
+    ylab <<- "MAE in estimated difference in proportions"
     hline <<- 0
     yTicks <<- seq(0, 1, .1)
   }
@@ -229,29 +229,27 @@ make_s3_data = function(.s){
       DiffBias = (Diff - TheoryDiff),
       Diff2Bias = (Diff2 - TheoryDiff),
       
-      PhatAbsBias = abs(Phat - TheoryP),
-      Phat2AbsBias = abs(Phat2 - TheoryP),
+      PhatAbsErr = abs(Phat - TheoryP),
+      Phat2AbsErr = abs(Phat2 - TheoryP),
       # not doing LogitPhat on its own because redundant with Phat itself
-      LogitPhat2AbsBias = abs( expit(LogitPhat2) - TheoryP ),
+      LogitPhat2AbsErr = abs( expit(LogitPhat2) - TheoryP ),
       
-      DiffAbsBias = abs(Diff - TheoryDiff),
-      Diff2AbsBias = abs(Diff2 - TheoryDiff),
+      DiffAbsErr = abs(Diff - TheoryDiff),
+      Diff2AbsErr = abs(Diff2 - TheoryDiff),
       
-      # @note that these are relative ABSOLUTE bias
-      #bm
-      PhatRelBias = PhatAbsBias/TheoryP,
-      Phat2RelBias = Phat2AbsBias/TheoryP,
-      LogitPhat2RelBias = LogitPhat2AbsBias/TheoryP,
+      PhatRelBias = PhatBias/TheoryP,
+      Phat2RelBias = Phat2Bias/TheoryP,
+      LogitPhat2RelBias = LogitPhat2Bias/TheoryP,
       
-      DiffRelBias = DiffAbsBias/TheoryDiff,
-      Diff2RelBias = Diff2AbsBias/TheoryDiff,
+      DiffRelBias = DiffBias/TheoryDiff,
+      Diff2RelBias = Diff2Bias/TheoryDiff,
       
       # diagnostics
-      EstMeanAbsBias = abs(EstMean - TrueMean),
-      EstMeanRelBias = EstMeanAbsBias / TrueMean,
+      EstMeanAbsErr = abs(EstMean - TrueMean),
+      EstMeanRelBias = EstMeanAbsErr / TrueMean,
       
-      EstVarAbsBias = abs(EstVar - TrueVar),
-      EstVarRelBias = EstVarAbsBias / TrueVar )
+      EstVarAbsErr = abs(EstVar - TrueVar),
+      EstVarRelBias = EstVarAbsErr / TrueVar )
   
   # recode calib.method
   s3$calib.method.pretty = NA
@@ -312,11 +310,11 @@ make_agg_data = function( .s3,
     "DiffBias",
     "Diff2Bias",
     
-    "PhatAbsBias",
-    "Phat2AbsBias",
-    "LogitPhat2AbsBias",
-    "DiffAbsBias",
-    "Diff2AbsBias",
+    "PhatAbsErr",
+    "Phat2AbsErr",
+    "LogitPhat2AbsErr",
+    "DiffAbsErr",
+    "Diff2AbsErr",
     
     #   "PhatBias",
     #   "Phat2Bias",
@@ -331,9 +329,9 @@ make_agg_data = function( .s3,
     
     # diagnostics regarding meta-analysis estimates
     "EstMeanRelBias",
-    "EstMeanAbsBias",
+    "EstMeanAbsErr",
     
-    "EstVarAbsBias",
+    "EstVarAbsErr",
     "EstVarRelBias",
     
     # diagnostics regarding bootstraps
@@ -341,7 +339,7 @@ make_agg_data = function( .s3,
     "PhatEmpSD",
     "PhatBtSD",
     "PhatBtSDBias",
-    "PhatBtSDAbsBias",
+    "PhatBtSDAbsErr",
     "PhatBtSDRelBias",
     "PhatBtFail",
     
@@ -351,7 +349,7 @@ make_agg_data = function( .s3,
     "DiffEmpSD",
     "DiffBtSD",
     "DiffBtSDBias",
-    "DiffBtSDAbsBias",
+    "DiffBtSDAbsErr",
     "DiffBtSDRelBias",
     "DiffBtFail"
   )
@@ -413,14 +411,14 @@ make_agg_data = function( .s3,
             
             PhatEmpSD = sd(Phat),
             PhatBtSDBias = PhatBtSD - PhatEmpSD,
-            PhatBtSDAbsBias = abs( PhatBtSD - PhatEmpSD ),
-            PhatBtSDRelBias = PhatBtSDAbsBias/PhatEmpSD,
+            PhatBtSDAbsErr = abs( PhatBtSD - PhatEmpSD ),
+            PhatBtSDRelBias = PhatBtSDAbsErr/PhatEmpSD,
             PhatBtSDRelBiasSigned = PhatBtSDBias/PhatEmpSD,
             
             DiffEmpSD = sd(Diff),
             DiffBtSDBias = DiffBtSD - DiffEmpSD,
-            DiffBtSDAbsBias = abs( DiffBtSD - DiffEmpSD ),
-            DiffBtSDRelBias = DiffBtSDAbsBias/DiffEmpSD,
+            DiffBtSDAbsErr = abs( DiffBtSD - DiffEmpSD ),
+            DiffBtSDRelBias = DiffBtSDAbsErr/DiffEmpSD,
             DiffBtSDRelBiasSigned = DiffBtSDBias/DiffEmpSD )
   
   
@@ -451,7 +449,6 @@ make_agg_data = function( .s3,
   t = data.frame( s4 %>% group_by(scen.name) %>%
                     summarise_at( analysis.vars, sd ) )
   
-  #browser()
   t = t %>% select(-scen.name)
   expect_equal( FALSE, 
                 any( !as.matrix( t[, 2:(ncol(t)) ] ) %in% c(0, NA, NaN) ) )
@@ -466,6 +463,11 @@ make_agg_data = function( .s3,
   #  combination of scenario name and calib.method
   # s4$unique.scen = paste(s4$scen.name, s4$calib.method)
   agg = s4[ !duplicated(s4$scen.name), ]
+  
+  # absolute bias is now just the absolute value of bias
+  #  and this is only used for the regressions in Supplement
+  agg$PhatAbsBias = abs(agg$PhatBias)
+  agg$DiffAbsBias = abs(agg$DiffBias)
   
   return(agg %>% ungroup() )
 }
