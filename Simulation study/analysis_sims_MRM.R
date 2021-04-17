@@ -723,6 +723,9 @@ max(aggDiff$DiffBias)
 max(aggDiff$DiffRelBias)
 max(aggDiff$EstVarRelBias)
 
+# worst bias in estimated mean
+max( abs(agg$EstMean - agg$TrueMean ) )
+
 
 ################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################
 
