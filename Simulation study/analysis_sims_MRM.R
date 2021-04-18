@@ -42,7 +42,22 @@ regressions.from.scratch = TRUE
 # should we wipe all existing violin plots?
 redo.violins = TRUE
 
+# make datasets corresponding to recommended scenarios in Discussion
+# recommended scenarios for Phat
+aggPhat = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
+expected_equal( nrow(aggPhat), 3522 )
+# save it
+setwd(prepped.data.dir)
+fwrite(aggPhat, "*agg_dataset_recommended_scens_phat.csv")
 
+# recommended scenarios for Diff
+aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
+                                        !(clustered == TRUE & true.effect.dist == "expo") &
+                                        k >= 20 ) )
+expected_equal( nrow(aggDiff), 1908 )
+# save it
+setwd(prepped.data.dir)
+fwrite(aggDiff, "*agg_dataset_recommended_scens_diff.csv")
 
 ################################## GENERAL STATS ON SIMULATIONS ##################################
 
@@ -192,29 +207,29 @@ if ( regressions.from.scratch == TRUE ) {
     print(summary(mod))
     
     
-  #   # best subsets
-  #   # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
-  #   library(rFSA)
-  #   string = paste( i, " ~ 1", sep="" )
-  #   keepers = c(obsVars, i)
-  #   mod2 = FSA( formula = eval( parse(text = string) ),
-  #               #data = s[1:1000,] %>% select(keepers),  # for testing
-  #               data = s %>% select(keepers),
-  #               cores = 8,
-  #               m = 2,  # order of interactions to try
-  #               interactions = FALSE,
-  #               criterion = AIC)
-  #   mod2
-  #   
-  #   if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
-  
+    #   # best subsets
+    #   # ex on page 298 here is good: https://journal.r-project.org/archive/2018/RJ-2018-059/RJ-2018-059.pdf
+    #   library(rFSA)
+    #   string = paste( i, " ~ 1", sep="" )
+    #   keepers = c(obsVars, i)
+    #   mod2 = FSA( formula = eval( parse(text = string) ),
+    #               #data = s[1:1000,] %>% select(keepers),  # for testing
+    #               data = s %>% select(keepers),
+    #               cores = 8,
+    #               m = 2,  # order of interactions to try
+    #               interactions = FALSE,
+    #               criterion = AIC)
+    #   mod2
+    #   
+    #   if ( i == outcomes[1] ) bestMod = list( summary(mod2)[[2]] ) else bestMod[[ length(bestMod) + 1 ]] = summary(mod2)[[2]]
+    
     
   }  # end loop over outcomes
   
   
   # look at results
   res
-
+  
   # clean up string formatting
   res2 = res %>% mutate_at( vars(good, bad), my_recode )
   
@@ -266,14 +281,6 @@ if ( redo.violins == TRUE ) {
 
 ##### 1. Marginal Violin Plots - Scenarios Fulfilling Guidelines in Discussion #####
 
-# recommended scenarios for Phat
-aggPhat = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
-
-# recommended scenarios for Diff
-aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
-                                     !(clustered == TRUE & true.effect.dist == "expo") ) )
-
-
 
 # put these in the order the plots should appear in manuscript
 outcomes = c("PhatBias",
@@ -296,12 +303,18 @@ alphaIndex = 1
 # to avoid subsequent error about "cannot change value of locked binding for 'ylab'"
 ylab = NULL
 
+
 for ( y in outcomes ) {
   
   yTicks = NA
   
   # for violin plots, set global parameters that my_violins() will use as arguments
   set_violin_params()
+  
+  # sanity check
+  # aggData is set by set_violin_params
+  if( grepl(x = y, pattern = "Diff")) expect_equal( nrow(aggData), 1908 )
+  if( grepl(x = y, pattern = "Phat")) expect_equal( nrow(aggData), 3522 )
   
   my_violins( 
     yName = y,
@@ -336,12 +349,13 @@ for ( y in outcomes ) {
   set_violin_params()
   
   my_violins( 
-              yName = y,
-              hline = hline,
-              ylab = ylab,
-              yTicks = yTicks,
-              prefix = myLetters[alphaIndex],
-              .results.dir = paste( figures.results.dir, "/2. All scenarios (marginal)", sep = "" ) )
+    yName = y,
+    hline = hline,
+    ylab = ylab,
+    yTicks = yTicks,
+    prefix = myLetters[alphaIndex],
+    .agg = agg,
+    .results.dir = paste( figures.results.dir, "/2. All scenarios (marginal)", sep = "" ) )
   
   cat( "\n Just finished marginal", y, ", oh yeah" )
   
@@ -383,7 +397,6 @@ for ( y in outcomes ) {
   set_violin_params()
   
   
-  
   for ( x in categX ) {
     
     # set up x-labels
@@ -403,6 +416,7 @@ for ( y in outcomes ) {
                 ylab = ylab,
                 yTicks = yTicks,
                 prefix = myLetters[alphaIndex],
+                .agg = agg,
                 .results.dir = paste( figures.results.dir, "/3. All scenarios (stratified)", sep = "" ) )
     
     cat( "\n Just finished", x, "vs", y, ", oh yeah" )
@@ -422,10 +436,11 @@ overleaf_figure_strings()
 
 ##### 4. (Main Text) Violin Plots by k Only - Good Scenarios #####
 
-
 # start index over because these are going in main text
 # start at 4 because we already have figures 1-3
 index = 4
+
+
 
 for ( y in outcomes ) {
   
@@ -440,23 +455,28 @@ for ( y in outcomes ) {
   
   set_violin_params()
   
+  # sanity check
+  # aggData is set by set_violin_params
+  if( grepl(x = y, pattern = "Diff")) expect_equal( nrow(aggData), 1908 )
+  if( grepl(x = y, pattern = "Phat")) expect_equal( nrow(aggData), 3522 )
   
-xlab = "Number of studies (k)"
- 
-    my_violins( xName = "k",
-                yName = y,
-                hline = hline,
-                xlab = xlab,
-                ylab = ylab,
-                yTicks = yTicks,
-                prefix = paste("Fig", index),
-                .results.dir = paste( figures.results.dir, "/4. Good scenarios (stratified by k)", sep = "" ) )
-    
-    cat( "\n Just finished", x, "vs", y, ", oh yeah" )
-    
-    index = index + 1
-    
- 
+  xlab = "Number of studies (k)"
+  
+  my_violins( xName = "k",
+              yName = y,
+              hline = hline,
+              xlab = xlab,
+              ylab = ylab,
+              yTicks = yTicks,
+              prefix = paste("Fig", index),
+              .agg = aggData,
+              .results.dir = paste( figures.results.dir, "/4. Good scenarios (stratified by k)", sep = "" ) )
+  
+  cat( "\n Just finished k vs", y, ", oh yeah" )
+  
+  index = index + 1
+  
+  
 }  # end loop over Y
 
 
@@ -480,8 +500,6 @@ averagefn = "median.pctiles"
 # make filtered dfs (will form rows of table)
 agg2 = make_agg_data( s %>% filter(contrast != "BC-rare") )
 agg3 = make_agg_data( s %>% filter(true.effect.dist == "normal") )
-# recommended scenarios: excluding only clustered expo is same as excluding all clustered
-aggPhat = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") ) )
 
 selectVars = "Phat"
 
@@ -525,7 +543,8 @@ View( t1 %>% select(keepers) )
 
 # recommended scenarios for diff
 aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
-                                     !(clustered == TRUE & true.effect.dist == "expo") ) )
+                                        !(clustered == TRUE & true.effect.dist == "expo") &
+                                        k >= 20) )
 
 # tried but not useful:
 #aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" & k>=100 ) )
@@ -543,6 +562,8 @@ aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
 #                                       true.effect.dist == "normal" &
 #                                       clustered == FALSE) ) 
 
+
+#bm
 selectVars = "Diff"
 
 t2 = rbind( my_summarise(dat = agg,
@@ -560,7 +581,7 @@ t2 = rbind( my_summarise(dat = agg,
             
             
             my_summarise(dat = aggDiff,
-                         description = "Not BC-rare nor clustered expo",
+                         description = "Not BC-rare/not clustered expo/k >= 20",
                          averagefn = averagefn)
 ) 
 
@@ -607,7 +628,7 @@ t3 = rbind( my_summarise(dat = agg,
                          averagefn = averagefn),
             
             my_summarise(dat = aggDiff,
-                         description = "No BC-rare/not clustered expo",
+                         description = "No BC-rare/not clustered expo/k>=50",
                          averagefn = averagefn) ) 
 
 
@@ -616,88 +637,88 @@ write.csv(t3, "extended_performance_table.csv")
 
 
 
-################################## ONLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
-
-
-# not in text
-
-##### Phat #####
-# like aggPhat, but with k<150: still 1% with bad coverage
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
-res$BadPhatCover
-res$CoverPhat
-
-# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
-# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-# res = my_summarise(dat = temp, averagefn = averagefn)
+# ################################## ONLY FOR RSM_3 RESPONSE LETTER: COVERAGE WITH K<150 ##################################
+# 
+# 
+# # not in text
+# 
+# ##### Phat #####
+# # like aggPhat, but with k<150: still 1% with bad coverage
+# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 # res$BadPhatCover
 # res$CoverPhat
-
-
-##### Diff #####
-# like aggDiff, but with k<150
-temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
-                                     !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
-res$BadDiffCover
-res$CoverDiff
-
-
-################################## ONLY FOR RSM_4 RESPONSE LETTER: CI WIDTH WHEN K<50 ##################################
-
-# these are in text (in-line)
-
-##### Phat #####
-# like aggPhat, but with k<150: still 1% with bad coverage
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
-res$BadPhatCover
-res$CoverPhat
-res$PhatCIWidth
-res$BadPhatWidth
-
-# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
-# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-# res = my_summarise(dat = temp, averagefn = averagefn)
+# 
+# # # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# # res = my_summarise(dat = temp, averagefn = averagefn)
+# # res$BadPhatCover
+# # res$CoverPhat
+# 
+# 
+# ##### Diff #####
+# # like aggDiff, but with k<150
+# temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+#                                      !(clustered == TRUE & true.effect.dist == "expo") & k < 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
+# res$BadDiffCover
+# res$CoverDiff
+# 
+# 
+# ################################## ONLY FOR RSM_4 RESPONSE LETTER: CI WIDTH WHEN K<50 ##################################
+# 
+# # these are in text (in-line)
+# 
+# ##### Phat #####
+# # like aggPhat, but with k<150: still 1% with bad coverage
+# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 # res$BadPhatCover
 # res$CoverPhat
-
-
-##### Diff #####
-# like aggDiff, but with k<150
-temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
-                                      !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
-res$BadDiffCover
-res$CoverDiff
-res$DiffCIWidth
-res$BadDiffWidth
-
-
-################################## ONLY FOR RSM_5 RESPONSE LETTER: COVERAGE WHEN K=150 ##################################
-
-##### Phat #####
-# like aggPhat, but with k=150: still 1% with bad coverage
-temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
-res$BadPhatCover
-res$CoverPhat
-
-# # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# res$PhatCIWidth
+# res$BadPhatWidth
+# 
+# # # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# # res = my_summarise(dat = temp, averagefn = averagefn)
+# # res$BadPhatCover
+# # res$CoverPhat
+# 
+# 
+# ##### Diff #####
+# # like aggDiff, but with k<150
+# temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+#                                       !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
+# res$BadDiffCover
+# res$CoverDiff
+# res$DiffCIWidth
+# res$BadDiffWidth
+# 
+# 
+# ################################## ONLY FOR RSM_5 RESPONSE LETTER: COVERAGE WHEN K=150 ##################################
+# 
+# ##### Phat #####
+# # like aggPhat, but with k=150: still 1% with bad coverage
 # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-# res = my_summarise(dat = temp, averagefn = averagefn)
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 # res$BadPhatCover
 # res$CoverPhat
-
-
-##### Diff #####
-# like aggDiff, but with k<150
-temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
-                                      !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
-res$BadDiffCover
-res$CoverDiff
+# 
+# # # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
+# # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# # res = my_summarise(dat = temp, averagefn = averagefn)
+# # res$BadPhatCover
+# # res$CoverPhat
+# 
+# 
+# ##### Diff #####
+# # like aggDiff, but with k<150
+# temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
+#                                       !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
+# res$BadDiffCover
+# res$CoverDiff
 
 
 ################################## ONLY FOR RSM_5 RESPONSE LETTER: MIN/MAX ISSUE ##################################
@@ -727,58 +748,58 @@ max(aggDiff$EstVarRelBias)
 max( abs(agg$EstMean - agg$TrueMean ) )
 
 
-################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################
-
-### Phat
-# all scenarios
-temp = my_summarise(dat = agg %>% filter( TheoryP >= 0.2 ),
-                    averagefn = averagefn,
-                    .selectVars = "Phat")
-
-temp %>% select( "PhatRelBias", "PhatAbsErr" )
-
-
-### Diff
-# all scenarios
-temp = my_summarise(dat = agg %>% filter( TheoryDiff >= 0.2 ),
-                    .selectVars = "Diff",
-                    averagefn = averagefn)
-
-temp %>% select( "DiffRelBias", "DiffAbsErr" )
-
-
-#### Look at the Worst 10% of Recommended Scenarios WRT Abs and Rel Bias #####
-
-### Phat
-# use only recommended scenarios that had absolute bias in worst 10%
-( q90 = quantile( aggPhat$PhatAbsErr, 0.90 ) )
-
-tempAgg = aggPhat %>% filter( PhatAbsErr > q90 )
-
-tempRes = my_summarise(dat = tempAgg,
-                    averagefn = averagefn,
-                    .selectVars = "Phat")
-
-tempRes %>% select( "PhatAbsErr", "PhatCIWidth", "CoverPhat" )
-
-# what proportion of these scenarios had highly uninformative CIs?
-mean( tempAgg$PhatCIWidth > 0.9 )
-
-### Diff
-# use only recommended scenarios
-( q90 = quantile( aggDiff$DiffAbsErr, 0.90 ) )
-
-tempAgg = aggDiff %>% filter( DiffAbsErr > q90 )
-
-tempRes = my_summarise(dat = tempAgg,
-                       averagefn = averagefn,
-                       .selectVars = "Diff")
-
-tempRes %>% select( "DiffAbsErr", "DiffCIWidth", "CoverDiff" )
-
-# what proportion of these scenarios had highly uninformative CIs?
-mean( tempAgg$DiffCIWidth > 0.9 )
-
+# ################################## RELATIVE BIAS WHEN THEORYP <= 0.20 ##################################
+# 
+# ### Phat
+# # all scenarios
+# temp = my_summarise(dat = agg %>% filter( TheoryP >= 0.2 ),
+#                     averagefn = averagefn,
+#                     .selectVars = "Phat")
+# 
+# temp %>% select( "PhatRelBias", "PhatAbsErr" )
+# 
+# 
+# ### Diff
+# # all scenarios
+# temp = my_summarise(dat = agg %>% filter( TheoryDiff >= 0.2 ),
+#                     .selectVars = "Diff",
+#                     averagefn = averagefn)
+# 
+# temp %>% select( "DiffRelBias", "DiffAbsErr" )
+# 
+# 
+# #### Look at the Worst 10% of Recommended Scenarios WRT Abs and Rel Bias #####
+# 
+# ### Phat
+# # use only recommended scenarios that had absolute bias in worst 10%
+# ( q90 = quantile( aggPhat$PhatAbsErr, 0.90 ) )
+# 
+# tempAgg = aggPhat %>% filter( PhatAbsErr > q90 )
+# 
+# tempRes = my_summarise(dat = tempAgg,
+#                     averagefn = averagefn,
+#                     .selectVars = "Phat")
+# 
+# tempRes %>% select( "PhatAbsErr", "PhatCIWidth", "CoverPhat" )
+# 
+# # what proportion of these scenarios had highly uninformative CIs?
+# mean( tempAgg$PhatCIWidth > 0.9 )
+# 
+# ### Diff
+# # use only recommended scenarios
+# ( q90 = quantile( aggDiff$DiffAbsErr, 0.90 ) )
+# 
+# tempAgg = aggDiff %>% filter( DiffAbsErr > q90 )
+# 
+# tempRes = my_summarise(dat = tempAgg,
+#                        averagefn = averagefn,
+#                        .selectVars = "Diff")
+# 
+# tempRes %>% select( "DiffAbsErr", "DiffCIWidth", "CoverDiff" )
+# 
+# # what proportion of these scenarios had highly uninformative CIs?
+# mean( tempAgg$DiffCIWidth > 0.9 )
+# 
 
 
 
