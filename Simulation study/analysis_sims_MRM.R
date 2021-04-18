@@ -694,7 +694,6 @@ res$CoverPhat
 
 
 ##### Phat CI width when k<=20 #####
-# like aggPhat, but with k<150: still 1% with bad coverage
 temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
 res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
 res$BadPhatCover
