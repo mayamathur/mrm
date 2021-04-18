@@ -132,7 +132,7 @@ param.vars = c("calib.method.pretty",
                "TheoryP",
                "contrast")
 
-outcomes = c("PhatRelBias", "CoverPhat", "DiffRelBias",  "CoverDiff", "PhatCIWidth", "DiffCIWidth")
+outcomes = c("PhatBias", "CoverPhat", "DiffBias",  "CoverDiff", "PhatCIWidth", "DiffCIWidth")
 
 # sanity check:
 # make sure we listed all the param vars
@@ -239,7 +239,6 @@ if ( regressions.from.scratch == TRUE ) {
   write.csv(res2, "performance_predictors.csv")
   
   # also print as xtable for Overleaf
-  
   print( xtable(res2), include.rownames = FALSE )
   
 }
@@ -294,11 +293,11 @@ outcomes = c("PhatBias",
              "DiffCIWidth")
 
 # for ordering files
-myLetters  = 1:200
+myIndices  = 1:200
 
 # this will be incremented so that each plot's title is prefaced
 #  by a letter to force the correct ordering
-alphaIndex = 1
+startIndex = 1
 
 # to avoid subsequent error about "cannot change value of locked binding for 'ylab'"
 ylab = NULL
@@ -312,7 +311,7 @@ for ( y in outcomes ) {
   set_violin_params()
   
   # sanity check
-  # aggData is set by set_violin_params
+  # aggData is set globally by set_violin_params
   if( grepl(x = y, pattern = "Diff")) expect_equal( nrow(aggData), 1908 )
   if( grepl(x = y, pattern = "Phat")) expect_equal( nrow(aggData), 3522 )
   
@@ -321,13 +320,13 @@ for ( y in outcomes ) {
     hline = hline,
     ylab = ylab,
     yTicks = yTicks,
-    prefix = paste( myLetters[alphaIndex], "goodScens", sep = "_" ),
+    prefix = paste( myIndices[startIndex], "goodScens", sep = "_" ),
     .results.dir = paste( figures.results.dir, "/1. Good scenarios (marginal)", sep = "" ),
     .agg = aggData )
   
   cat( "\n Just finished marginal", y, ", oh yeah" )
   
-  alphaIndex = alphaIndex + 1
+  startIndex = startIndex + 1
   
 }  # end loop over Y
 
@@ -353,13 +352,13 @@ for ( y in outcomes ) {
     hline = hline,
     ylab = ylab,
     yTicks = yTicks,
-    prefix = myLetters[alphaIndex],
+    prefix = myIndices[startIndex],
     .agg = agg,
     .results.dir = paste( figures.results.dir, "/2. All scenarios (marginal)", sep = "" ) )
   
   cat( "\n Just finished marginal", y, ", oh yeah" )
   
-  alphaIndex = alphaIndex + 1
+  startIndex = startIndex + 1
   
 }  # end loop over Y
 
@@ -415,13 +414,13 @@ for ( y in outcomes ) {
                 xlab = xlab,
                 ylab = ylab,
                 yTicks = yTicks,
-                prefix = myLetters[alphaIndex],
+                prefix = myIndices[startIndex],
                 .agg = agg,
                 .results.dir = paste( figures.results.dir, "/3. All scenarios (stratified)", sep = "" ) )
     
     cat( "\n Just finished", x, "vs", y, ", oh yeah" )
     
-    alphaIndex = alphaIndex + 1
+    startIndex = startIndex + 1
     
   }  # end loop over X
   
@@ -439,7 +438,6 @@ overleaf_figure_strings()
 # start index over because these are going in main text
 # start at 4 because we already have figures 1-3
 index = 4
-
 
 
 for ( y in outcomes ) {
@@ -541,11 +539,6 @@ View( t1 %>% select(keepers) )
 
 ##### Table 5: Diff #####
 
-# recommended scenarios for diff
-aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
-                                        !(clustered == TRUE & true.effect.dist == "expo") &
-                                        k >= 20) )
-
 # tried but not useful:
 #aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" & k>=100 ) )
 
@@ -563,7 +556,6 @@ aggDiff = make_agg_data( s %>% filter(contrast != "BC-rare" &
 #                                       clustered == FALSE) ) 
 
 
-#bm
 selectVars = "Diff"
 
 t2 = rbind( my_summarise(dat = agg,
@@ -669,14 +661,7 @@ write.csv(t3, "extended_performance_table.csv")
 # 
 # # these are in text (in-line)
 # 
-# ##### Phat #####
-# # like aggPhat, but with k<150: still 1% with bad coverage
-# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
-# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
-# res$BadPhatCover
-# res$CoverPhat
-# res$PhatCIWidth
-# res$BadPhatWidth
+
 # 
 # # # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
 # # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
@@ -696,22 +681,30 @@ write.csv(t3, "extended_performance_table.csv")
 # res$BadDiffWidth
 # 
 # 
-# ################################## ONLY FOR RSM_5 RESPONSE LETTER: COVERAGE WHEN K=150 ##################################
-# 
-# ##### Phat #####
-# # like aggPhat, but with k=150: still 1% with bad coverage
-# temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-# res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
-# res$BadPhatCover
-# res$CoverPhat
-# 
-# # # compare to k=150 only: 3% bad coverage and "0.93 (0.88, 0.97)"
-# # temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
-# # res = my_summarise(dat = temp, averagefn = averagefn)
-# # res$BadPhatCover
-# # res$CoverPhat
-# 
-# 
+################################## ONE-OFF STATS FOR PHAT RESULTS ##################################
+
+# SAVE THIS BECAUSE IT'S IN PAPER
+
+##### Phat coverage at k=150 exactly: 0.93 (0.88, 0.97) #####
+# like aggPhat, but with k=150: still 1% with bad coverage
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k == 150 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
+res$BadPhatCover
+res$CoverPhat
+
+
+##### Phat CI width when k<=20 #####
+# like aggPhat, but with k<150: still 1% with bad coverage
+temp = make_agg_data( s %>% filter( !(clustered == TRUE & true.effect.dist == "expo") & k <= 20 ) )
+res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Phat")
+res$BadPhatCover
+res$CoverPhat
+res$PhatCIWidth
+res$BadPhatWidth
+
+
+
+
 # ##### Diff #####
 # # like aggDiff, but with k<150
 # temp = make_agg_data( s %>% filter( contrast != "BC-rare" &
@@ -719,7 +712,7 @@ write.csv(t3, "extended_performance_table.csv")
 # res = my_summarise(dat = temp, averagefn = averagefn, .selectVars = "Diff")
 # res$BadDiffCover
 # res$CoverDiff
-
+# 
 
 ################################## ONLY FOR RSM_5 RESPONSE LETTER: MIN/MAX ISSUE ##################################
 
